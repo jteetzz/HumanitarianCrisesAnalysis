@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EAOPT — Emergency Aid Optimizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --c-bg: #0d1117;
+      --c-surface: #161b22;
+      --c-surface2: #1c2230;
+      --c-border: #30363d;
+      --c-text: #e6edf3;
+      --c-muted: #7d8590;
+      --c-danger: #ff6b6b;
+      --c-warn: #f0a500;
+      --c-success: #3fb950;
+      --c-info: #58a6ff;
+      --c-purple: #bc8cff;
+      --c-depot: #f0a500;
+      --c-camp: #58a6ff;
+      --c-route: #3fb950;
+      --font-mono: 'Space Mono', monospace;
+      --font-sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--c-bg);
+      color: var(--c-text);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 230px 1fr 210px;
+      grid-template-rows: 46px 1fr 38px;
+      height: 100vh;
+      min-height: 560px;
+    }
+
+    /* ── Header ── */
+    .header {
+      grid-column: 1 / -1;
+      background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 14px;
+    }
+    .logo {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--c-warn);
+      letter-spacing: .08em;
+      white-space: nowrap;
+    }
+    .logo span { color: var(--c-muted); font-weight: 400; }
+    .header-pills { display: flex; gap: 8px; }
+    .status-pill {
+      font-size: 10px;
+      padding: 2px 9px;
+      border-radius: 99px;
+      font-family: var(--font-mono);
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+    .pill-warn  { background: #f0a50018; color: var(--c-warn);    border: 1px solid #f0a50040; }
+    .pill-ok    { background: #3fb95018; color: var(--c-success);  border: 1px solid #3fb95040; }
+    .pill-info  { background: #58a6ff18; color: var(--c-info);     border: 1px solid #58a6ff40; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .sim-label { font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); }
+    .toggle-track {
+      width: 30px; height: 16px;
+      background: var(--c-warn);
+      border-radius: 99px;
+      position: relative;
+      cursor: pointer;
+      display: inline-block;
+    }
+    .toggle-knob {
+      width: 12px; height: 12px;
+      background: #000;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px; right: 2px;
+      transition: transform .2s;
+    }
+
+    /* ── Left Panel ── */
+    .panel-left {
+      background: var(--c-surface);
+      border-right: 1px solid var(--c-border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-left::-webkit-scrollbar { width: 4px; }
+    .panel-left::-webkit-scrollbar-track { background: transparent; }
+    .panel-left::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+    .panel-section {
+      padding: 10px 13px;
+      border-bottom: 1px solid var(--c-border);
+    }
+    .panel-section:last-child { flex: 1; border-bottom: none; }
+    .panel-label {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--c-muted);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 9px;
+    }
+
+    .algo-btn {
+      width: 100%;
+      padding: 7px 10px;
+      margin-bottom: 4px;
+      background: var(--c-surface2);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      color: var(--c-text);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color .15s, background .15s;
+    }
+    .algo-btn:hover { border-color: var(--c-info); }
+    .algo-btn.active { border-color: var(--c-warn); background: #f0a50010; color: var(--c-warn); }
+    .algo-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-greedy   { background: var(--c-warn); }
+    .dot-dp       { background: var(--c-success); }
+    .dot-dijkstra { background: var(--c-info); }
+    .dot-bb       { background: var(--c-purple); }
+
+    .constraint-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 3px;
+    }
+    .constraint-label { color: var(--c-muted); font-size: 11px; }
+    .constraint-val   { font-family: var(--font-mono); font-size: 11px; color: var(--c-text); }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--c-info);
+      margin: 3px 0 9px;
+      cursor: pointer;
+      height: 4px;
+    }
+
+    .scenario-btn {
+      width: 100%;
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      background: var(--c-surface2);
+      border: 1px solid var(--c-border);
+      border-radius: 5px;
+      color: var(--c-muted);
+      font-size: 10px;
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font-mono);
+      transition: color .15s, border-color .15s, background .15s;
+    }
+    .scenario-btn:hover { color: var(--c-text); border-color: var(--c-border); }
+    .scenario-btn.sel   { color: var(--c-info); border-color: var(--c-info); background: #58a6ff10; }
+
+    /* ── Map ── */
+    .map-wrap {
+      position: relative;
+      overflow: hidden;
+      background: var(--c-bg);
+    }
+    #map-canvas { display: block; width: 100%; height: 100%; }
+    .map-overlay {
+      position: absolute;
+      top: 10px; left: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      pointer-events: none;
+    }
+    .map-badge {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 4px;
+      padding: 3px 9px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-muted);
+    }
+    .map-badge b { color: var(--c-text); }
+
+    .map-actions {
+      position: absolute;
+      bottom: 12px; right: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .btn-interrupt {
+      background: var(--c-surface);
+      color: var(--c-danger);
+      border: 1px solid var(--c-danger);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-interrupt:hover { background: #ff6b6b18; }
+    .btn-run {
+      background: var(--c-warn);
+      color: #000;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .04em;
+      transition: opacity .15s;
+    }
+    .btn-run:hover { opacity: .85; }
+    .btn-run:disabled { opacity: .5; cursor: default; }
+
+    /* ── Right Panel ── */
+    .panel-right {
+      background: var(--c-surface);
+      border-left: 1px solid var(--c-border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 8px;
+    }
+    .panel-right::-webkit-scrollbar { width: 4px; }
+    .panel-right::-webkit-scrollbar-track { background: transparent; }
+    .panel-right::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+    .metric-card {
+      margin: 8px 10px 0;
+      background: var(--c-surface2);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      padding: 10px 13px;
+    }
+    .metric-name { font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); letter-spacing: .06em; margin-bottom: 4px; }
+    .metric-val  { font-size: 22px; font-weight: 600; font-family: var(--font-mono); }
+    .metric-sub  { font-size: 10px; color: var(--c-muted); margin-top: 2px; }
+    .val-green { color: var(--c-success); }
+    .val-warn  { color: var(--c-warn); }
+    .val-red   { color: var(--c-danger); }
+
+    .log-wrap { margin: 10px 10px 0; flex: 1; }
+    .log-header {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--c-muted);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .log-entry {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 3px 0;
+      border-bottom: 1px solid var(--c-border);
+      color: var(--c-muted);
+      display: flex;
+      gap: 6px;
+      line-height: 1.5;
+    }
+    .log-time  { color: var(--c-muted); flex-shrink: 0; }
+    .log-ok    { color: var(--c-success); }
+    .log-warn  { color: var(--c-warn); }
+    .log-err   { color: var(--c-danger); }
+
+    /* ── Footer ── */
+    .footer {
+      grid-column: 1 / -1;
+      background: var(--c-surface);
+      border-top: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 12px;
+      overflow-x: auto;
+    }
+    .legend { display: flex; gap: 14px; align-items: center; flex-wrap: nowrap; }
+    .leg-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); white-space: nowrap; }
+    .leg-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .footer-right { margin-left: auto; font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); white-space: nowrap; }
+
+    /* ── Tooltip ── */
+    #tooltip {
+      position: fixed;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--c-text);
+      pointer-events: none;
+      display: none;
+      z-index: 100;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        grid-template-columns: 180px 1fr;
+        grid-template-rows: 46px 1fr 1fr 38px;
+      }
+      .panel-right { display: none; }
+      .header-pills .pill-info { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Header ── -->
+  <header class="header">
+    <div class="logo">EAOPT <span>/ emergency aid optimizer</span></div>
+    <div class="header-pills">
+      <div class="status-pill pill-warn">● CONFLICT ACTIVE</div>
+      <div class="status-pill pill-ok" id="depot-pill">● 4 DEPOTS ONLINE</div>
+      <div class="status-pill pill-info">● 7 CAMPS QUEUED</div>
+    </div>
+    <div class="header-right">
+      <span class="sim-label">SIM</span>
+      <div class="toggle-track" id="sim-toggle" title="Toggle simulation mode">
+        <div class="toggle-knob"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Left Panel ── -->
+  <aside class="panel-left">
+
+    <div class="panel-section">
+      <div class="panel-label">Algorithm</div>
+      <button class="algo-btn active" data-algo="GREEDY">
+        <span class="algo-dot dot-greedy"></span>Greedy priority
+      </button>
+      <button class="algo-btn" data-algo="DP KNAPSACK">
+        <span class="algo-dot dot-dp"></span>DP knapsack
+      </button>
+      <button class="algo-btn" data-algo="DIJKSTRA">
+        <span class="algo-dot dot-dijkstra"></span>Dijkstra routing
+      </button>
+      <button class="algo-btn" data-algo="BRANCH+BOUND">
+        <span class="algo-dot dot-bb"></span>Branch + bound
+      </button>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Constraints</div>
+
+      <div class="constraint-row">
+        <span class="constraint-label">Max trucks</span>
+        <span class="constraint-val" id="v-trucks">6</span>
+      </div>
+      <input type="range" min="1" max="12" value="6"
+        oninput="document.getElementById('v-trucks').textContent = this.value">
+
+      <div class="constraint-row">
+        <span class="constraint-label">Fuel budget</span>
+        <span class="constraint-val" id="v-fuel">70%</span>
+      </div>
+      <input type="range" min="10" max="100" value="70"
+        oninput="document.getElementById('v-fuel').textContent = this.value + '%'">
+
+      <div class="constraint-row">
+        <span class="constraint-label">Time window</span>
+        <span class="constraint-val" id="v-time">48h</span>
+      </div>
+      <input type="range" min="6" max="96" value="48" step="6"
+        oninput="document.getElementById('v-time').textContent = this.value + 'h'">
+
+      <div class="constraint-row">
+        <span class="constraint-label">Danger threshold</span>
+        <span class="constraint-val" id="v-danger">Med</span>
+      </div>
+      <input type="range" min="1" max="3" value="2" step="1"
+        oninput="document.getElementById('v-danger').textContent = ['Low','Med','High'][this.value - 1]">
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Scenario</div>
+      <button class="scenario-btn sel">Urban siege</button>
+      <button class="scenario-btn">Flood aftermath</button>
+      <button class="scenario-btn">Border displacement</button>
+      <button class="scenario-btn">Custom…</button>
+    </div>
+
+    <div class="panel-section">
+      <div class="panel-label">Priority weights</div>
+
+      <div class="constraint-row">
+        <span class="constraint-label">Medical</span>
+        <span class="constraint-val" id="w-med">40%</span>
+      </div>
+      <input type="range" min="0" max="100" value="40"
+        oninput="document.getElementById('w-med').textContent = this.value + '%'">
+
+      <div class="constraint-row">
+        <span class="constraint-label">Food</span>
+        <span class="constraint-val" id="w-food">35%</span>
+      </div>
+      <input type="range" min="0" max="100" value="35"
+        oninput="document.getElementById('w-food').textContent = this.value + '%'">
+
+      <div class="constraint-row">
+        <span class="constraint-label">Shelter kits</span>
+        <span class="constraint-val" id="w-shel">25%</span>
+      </div>
+      <input type="range" min="0" max="100" value="25"
+        oninput="document.getElementById('w-shel').textContent = this.value + '%'">
+    </div>
+
+  </aside>
+
+  <!-- ── Map ── -->
+  <main class="map-wrap">
+    <canvas id="map-canvas"></canvas>
+    <div class="map-overlay">
+      <div class="map-badge">ZONE <b>NW-4</b></div>
+      <div class="map-badge">ROADS <b>14 active / 3 blocked</b></div>
+      <div class="map-badge" id="algo-badge">ALGO <b>GREEDY</b></div>
+    </div>
+    <div class="map-actions">
+      <button class="btn-interrupt" id="block-btn" title="Simulate a road blockage">✕ BLOCK ROAD</button>
+      <button class="btn-run" id="run-btn">▶ RUN OPTIMIZER</button>
+    </div>
+  </main>
+
+  <!-- ── Right Panel ── -->
+  <aside class="panel-right">
+    <div class="metric-card">
+      <div class="metric-name">COVERAGE</div>
+      <div class="metric-val val-green" id="m-coverage">83%</div>
+      <div class="metric-sub">5,810 / 7,000 served</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">UNMET NEED</div>
+      <div class="metric-val val-warn" id="m-unmet">1,190</div>
+      <div class="metric-sub">2 camps unreachable</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">EFFICIENCY</div>
+      <div class="metric-val val-green" id="m-eff">91%</div>
+      <div class="metric-sub">vs greedy baseline</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-name">AVG ROUTE RISK</div>
+      <div class="metric-val val-warn" id="m-risk">2.4</div>
+      <div class="metric-sub">scale 1–5</div>
+    </div>
+
+    <div class="log-wrap">
+      <div class="log-header">Activity log</div>
+      <div id="log-list">
+        <div class="log-entry"><span class="log-time">09:14</span><span class="log-ok">Depot D2 → Camp C5 assigned</span></div>
+        <div class="log-entry"><span class="log-time">09:12</span><span class="log-warn">Route R7 blocked — rerouting</span></div>
+        <div class="log-entry"><span class="log-time">09:10</span><span class="log-ok">Triage complete — 7 camps ranked</span></div>
+        <div class="log-entry"><span class="log-time">09:08</span><span class="log-err">Camp C6 unreachable (danger)</span></div>
+        <div class="log-entry"><span class="log-time">09:05</span><span class="log-ok">Scenario loaded: urban siege</span></div>
+        <div class="log-entry"><span class="log-time">09:00</span><span class="log-ok">System initialised</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Footer ── -->
+  <footer class="footer">
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:var(--c-depot)"></div>Aid depot</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--c-camp)"></div>Refugee camp</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--c-success)"></div>Active route</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--c-danger)"></div>Blocked road</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--c-purple)"></div>High-risk zone</div>
+    </div>
+    <div class="footer-right">EAOPT v0.1 · CS Capstone 2026</div>
+  </footer>
+
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip"></div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const DEPOTS = [
+  { x: .15, y: .20, label: 'D1', supply: 85 },
+  { x: .70, y: .15, label: 'D2', supply: 60 },
+  { x: .80, y: .75, label: 'D3', supply: 90 },
+  { x: .20, y: .80, label: 'D4', supply: 40 },
+];
+
+const CAMPS = [
+  { x: .35, y: .30, label: 'C1', pop: 1200, urgency: 5 },
+  { x: .55, y: .20, label: 'C2', pop:  800, urgency: 3 },
+  { x: .50, y: .45, label: 'C3', pop: 2100, urgency: 5 },
+  { x: .65, y: .60, label: 'C4', pop:  600, urgency: 2 },
+  { x: .30, y: .60, label: 'C5', pop:  900, urgency: 4 },
+  { x: .45, y: .75, label: 'C6', pop:  400, urgency: 1 },
+  { x: .75, y: .45, label: 'C7', pop: 1000, urgency: 4 },
+];
+
+const ROUTES = [
+  { from: DEPOTS[0], to: CAMPS[0], active: true  },
+  { from: DEPOTS[0], to: CAMPS[4], active: true  },
+  { from: DEPOTS[1], to: CAMPS[1], active: true  },
+  { from: DEPOTS[1], to: CAMPS[3], active: true  },
+  { from: DEPOTS[2], to: CAMPS[6], active: true  },
+  { from: DEPOTS[3], to: CAMPS[4], active: true  },
+  { from: DEPOTS[1], to: CAMPS[2], active: false }, // blocked
+];
+
+const BLOCKED_ROADS = [
+  { x1: .42, y1: .52, x2: .52, y2: .37 },
+];
+
+const BG_ROADS = [
+  [DEPOTS[0], CAMPS[0]], [DEPOTS[0], CAMPS[4]],
+  [DEPOTS[1], CAMPS[1]], [DEPOTS[1], CAMPS[3]], [DEPOTS[1], CAMPS[2]],
+  [DEPOTS[2], CAMPS[6]], [DEPOTS[3], CAMPS[4]],
+  [CAMPS[0],  CAMPS[2]], [CAMPS[2],  CAMPS[5]], [CAMPS[4], CAMPS[5]],
+];
+
+// ── Canvas setup ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('map-canvas');
+const ctx    = canvas.getContext('2d');
+let W, H;
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width  = rect.width  * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  canvas.style.width  = rect.width  + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  W = rect.width;
+  H = rect.height;
+  draw(routeProgress);
+}
+
+// ── Animation state ───────────────────────────────────────────────────────────
+let routeProgress = 0;
+let animating     = false;
+let animFrameId   = null;
+let pulsePhase    = 0;
+let blocked       = false;
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ── Draw ──────────────────────────────────────────────────────────────────────
+function draw(progress = 1) {
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid texture
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth   = 1;
+  for (let i = 0; i < W; i += 32) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke(); }
+  for (let i = 0; i < H; i += 32) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke(); }
+  ctx.restore();
+
+  // Danger zone radial glow
+  const gx = ctx.createRadialGradient(.50*W, .47*H, 0, .50*W, .47*H, .18*W);
+  gx.addColorStop(0,   'rgba(188,140,255,0.12)');
+  gx.addColorStop(1,   'rgba(188,140,255,0)');
+  ctx.fillStyle = gx;
+  ctx.beginPath();
+  ctx.arc(.50*W, .47*H, .18*W, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Background roads
+  ctx.save();
+  ctx.setLineDash([4, 7]);
+  ctx.lineWidth   = .8;
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  BG_ROADS.forEach(([a, b]) => {
+    ctx.beginPath();
+    ctx.moveTo(a.x * W, a.y * H);
+    ctx.lineTo(b.x * W, b.y * H);
+    ctx.stroke();
+  });
+  ctx.restore();
+
+  // Blocked roads
+  BLOCKED_ROADS.forEach(b => {
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth   = 2;
+    ctx.strokeStyle = 'rgba(255,107,107,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(b.x1 * W, b.y1 * H);
+    ctx.lineTo(b.x2 * W, b.y2 * H);
+    ctx.stroke();
+    ctx.restore();
+    const mx = (b.x1 + b.x2) / 2 * W;
+    const my = (b.y1 + b.y2) / 2 * H;
+    ctx.fillStyle = 'var(--c-danger)';
+    ctx.font      = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('✕', mx, my - 6);
+  });
+
+  // Extra blocked road when button pressed
+  if (blocked) {
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth   = 2;
+    ctx.strokeStyle = 'rgba(255,107,107,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(DEPOTS[0].x * W, DEPOTS[0].y * H);
+    ctx.lineTo(CAMPS[4].x  * W, CAMPS[4].y  * H);
+    ctx.stroke();
+    ctx.restore();
+    const mx = (DEPOTS[0].x + CAMPS[4].x) / 2 * W;
+    const my = (DEPOTS[0].y + CAMPS[4].y) / 2 * H;
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font      = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('✕', mx, my - 6);
+  }
+
+  // Active routes (animated draw)
+  ROUTES.filter(r => r.active).forEach((r, i) => {
+    const t = Math.min(1, (progress - i * 0.12) / 0.45);
+    if (t <= 0) return;
+    const x1 = r.from.x * W, y1 = r.from.y * H;
+    const x2 = lerp(x1, r.to.x * W, t);
+    const y2 = lerp(y1, r.to.y * H, t);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(63,185,80,0.6)';
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+    // Truck dot at end
+    if (t >= 1) {
+      ctx.fillStyle = '#3fb950';
+      ctx.beginPath();
+      ctx.arc(x2, y2, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // Depot nodes
+  DEPOTS.forEach(d => {
+    const x = d.x * W, y = d.y * H;
+    ctx.fillStyle   = 'rgba(240,165,0,0.12)';
+    ctx.strokeStyle = '#f0a500';
+    ctx.lineWidth   = 1.5;
+    ctx.fillRect(x - 10, y - 10, 20, 20);
+    ctx.strokeRect(x - 10, y - 10, 20, 20);
+    // Supply bar
+    const pct = d.supply / 100;
+    ctx.fillStyle = 'rgba(240,165,0,0.3)';
+    ctx.fillRect(x - 8, y + 3, 16, 3);
+    ctx.fillStyle = '#f0a500';
+    ctx.fillRect(x - 8, y + 3, 16 * pct, 3);
+    ctx.fillStyle = '#f0a500';
+    ctx.font      = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.label, x, y - 14);
+  });
+
+  // Camp nodes (circles, radius scales with urgency)
+  pulsePhase = (Date.now() / 400) % (Math.PI * 2);
+  CAMPS.forEach(c => {
+    const x  = c.x * W, y = c.y * H;
+    const r  = 5 + c.urgency * 1.5;
+    const col = c.urgency >= 4 ? '#ff6b6b'
+              : c.urgency >= 3 ? '#f0a500'
+              :                  '#58a6ff';
+    // Pulse ring for urgent camps
+    if (c.urgency >= 4 && progress >= 1) {
+      const alpha = 0.25 + 0.15 * Math.sin(pulsePhase);
+      ctx.save();
+      ctx.strokeStyle = col.replace(')', `,${alpha})`).replace('rgb', 'rgba');
+      ctx.strokeStyle = col + '55';
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle   = col + '22';
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Population bar below circle
+    ctx.fillStyle = col + '33';
+    ctx.fillRect(x - 12, y + r + 3, 24, 3);
+    ctx.fillStyle = col;
+    ctx.fillRect(x - 12, y + r + 3, 24 * (c.pop / 2100), 3);
+    // Label
+    ctx.fillStyle = col;
+    ctx.font      = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(c.label, x, y - r - 5);
+  });
+
+  // Keep the pulse alive after animation finishes
+  if (progress >= 1 && !animating) {
+    animFrameId = requestAnimationFrame(() => draw(1));
+  }
+}
+
+// ── Run animation ─────────────────────────────────────────────────────────────
+function runOptimizer() {
+  if (animating) return;
+  cancelAnimationFrame(animFrameId);
+  animating      = true;
+  routeProgress  = 0;
+  const runBtn   = document.getElementById('run-btn');
+  runBtn.disabled = true;
+  runBtn.textContent = 'RUNNING…';
+
+  addLog('ok', 'Optimizer started');
+
+  const step = () => {
+    routeProgress += 0.016;
+    draw(routeProgress);
+    if (routeProgress < 1.6) {
+      animFrameId = requestAnimationFrame(step);
+    } else {
+      animating = false;
+      draw(1);
+      runBtn.disabled  = false;
+      runBtn.textContent = '▶ RUN OPTIMIZER';
+      addLog('ok', 'Allocation complete — 5 routes dispatched');
+    }
+  };
+  step();
+}
+
+// ── Block road ────────────────────────────────────────────────────────────────
+document.getElementById('block-btn').addEventListener('click', () => {
+  blocked = !blocked;
+  const btn = document.getElementById('block-btn');
+  if (blocked) {
+    btn.textContent = '↺ RESTORE ROAD';
+    addLog('warn', 'Route D1→C5 blocked — rerouting');
+  } else {
+    btn.textContent = '✕ BLOCK ROAD';
+    addLog('ok', 'Route D1→C5 restored');
+  }
+  draw(routeProgress >= 1 ? 1 : routeProgress);
+});
+
+// ── Run button ────────────────────────────────────────────────────────────────
+document.getElementById('run-btn').addEventListener('click', runOptimizer);
+
+// ── Algo buttons ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.algo-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const algo = this.dataset.algo;
+    document.getElementById('algo-badge').innerHTML = 'ALGO <b>' + algo + '</b>';
+    addLog('ok', 'Algorithm switched to ' + algo);
+  });
+});
+
+// ── Scenario buttons ──────────────────────────────────────────────────────────
+document.querySelectorAll('.scenario-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('sel'));
+    this.classList.add('sel');
+    addLog('ok', 'Scenario loaded: ' + this.textContent.trim());
+    routeProgress = 0;
+    draw(0);
+  });
+});
+
+// ── Tooltip on canvas hover ───────────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  let found = false;
+
+  DEPOTS.forEach(d => {
+    const dx = mx - d.x * W, dy = my - d.y * H;
+    if (Math.sqrt(dx*dx + dy*dy) < 14) {
+      tooltip.innerHTML = `<b style="color:var(--c-warn)">${d.label}</b><br>Supply: ${d.supply}%<br>Type: Aid depot`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top  = (e.clientY - 10) + 'px';
+      found = true;
+    }
+  });
+
+  CAMPS.forEach(c => {
+    const r  = 5 + c.urgency * 1.5;
+    const dx = mx - c.x * W, dy = my - c.y * H;
+    const col = c.urgency >= 4 ? 'var(--c-danger)'
+              : c.urgency >= 3 ? 'var(--c-warn)'
+              :                  'var(--c-info)';
+    if (Math.sqrt(dx*dx + dy*dy) < r + 6) {
+      tooltip.innerHTML = `<b style="color:${col}">${c.label}</b><br>Population: ${c.pop.toLocaleString()}<br>Urgency: ${'★'.repeat(c.urgency)}`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top  = (e.clientY - 10) + 'px';
+      found = true;
+    }
+  });
+
+  if (!found) tooltip.style.display = 'none';
+});
+canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+// ── Log helper ────────────────────────────────────────────────────────────────
+function addLog(type, msg) {
+  const list  = document.getElementById('log-list');
+  const now   = new Date();
+  const time  = now.getHours().toString().padStart(2,'0') + ':'
+              + now.getMinutes().toString().padStart(2,'0');
+  const cls   = type === 'ok' ? 'log-ok' : type === 'warn' ? 'log-warn' : 'log-err';
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${time}</span><span class="${cls}">${msg}</span>`;
+  list.insertBefore(entry, list.firstChild);
+}
+
+// ── Resize observer ───────────────────────────────────────────────────────────
+const ro = new ResizeObserver(resizeCanvas);
+ro.observe(canvas.parentElement);
+
+// Initial draw
+resizeCanvas();
+draw(0);
+</script>
+</body>
+</html>
