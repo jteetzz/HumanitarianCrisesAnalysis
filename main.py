@@ -1,6 +1,7 @@
 import math
 from greedy_select import greedy_selection
 from delivery_optimizer import plan_all_trucks, deg_to_km
+from algorithms import priority_queue_selection, decay_urgency, reveal_fog_zones
 
 def explain_priority(zones):
     print("Affected zones Sorted by Priority:")
@@ -108,3 +109,41 @@ if __name__ == "__main__":
     print(f"Coverage of original requested aid: {total_kg2 / original_total_demand * 100:.1f}%")
     print(f"Total urgency sum: {total_urgency2}")
     print(f"Total delivery time for all trucks (combined): {total_time_all_trucks2:.1f} hours")
+    print("")
+
+    #Priority Queue test on the same toy example as Greedy select
+    print("Priority Queue Selection on full dataset (5 zones, 3 trucks, 18000 kg each)")
+    pq_selected, pq_assignments, pq_total_kg, pq_total_urgency = priority_queue_selection(
+        zones, truck_capacity_kg, num_trucks, depot
+    )
+    print("Priority Queue assignments:", pq_assignments)
+    print("Total kg delivered:", pq_total_kg, "Total urgency:", pq_total_urgency)
+    print("Selected zone IDs:", [z['id'] for z in pq_selected])
+    print("")
+
+    #Comparison of priority queue and greedy select algorithms
+    pq_routes, pq_km_list, pq_hours_list = plan_all_trucks(pq_assignments, zones, depot)
+    pq_total_hours = sum(pq_hours_list)
+    print("Algorithm comparison (same toy example):")
+    print(f"Greedy Algorithm - Zones served: {len(selected)}, Total kg: {total_kg}, Urgency sum: {total_urgency}, Coverage: {total_kg / total_demand * 100:.1f}%, Total hours: {total_time_all_trucks:.1f}")
+    print(f"Priority Queue - Zones served: {len(pq_selected)}, Total kg: {pq_total_kg}, Urgency sum: {pq_total_urgency}, Coverage: {pq_total_kg / total_demand * 100:.1f}%, Total hours: {pq_total_hours:.1f}\n")
+
+    #Urgency decay verification test
+    print("Urgency Decay verification")
+    test_zones = [
+        {'id': 'Z1', 'demand_kg': 1000, 'urgency': 5, 'risk': 3, 'lat': 0, 'lng': 0},
+        {'id': 'Z2', 'demand_kg': 2000, 'urgency': 2, 'risk': 2, 'lat': 0, 'lng': 0},
+    ]
+    served_ids = {'Z1'}
+    decayed = decay_urgency(test_zones, 24, served_ids)
+    for z in decayed:
+        print(f"Zone {z['id']}: urgency = {z['urgency']}")
+    print("")
+
+    #Fog of war verification
+    print("Fog of War verification")
+    fog_ids = ['X', 'Y', 'Z']
+    revealed = reveal_fog_zones(None, fog_ids, seed=42)
+    for zid, accessible in revealed.items():
+        print(f"Zone {zid}: accessible = {accessible}")
+    print("")
