@@ -7,861 +7,788 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --c-bg: #0d1117;
-      --c-surface: #161b22;
-      --c-surface2: #1c2230;
-      --c-border: #30363d;
-      --c-text: #e6edf3;
-      --c-muted: #7d8590;
-      --c-danger: #ff6b6b;
-      --c-warn: #f0a500;
-      --c-success: #3fb950;
-      --c-info: #58a6ff;
-      --c-purple: #bc8cff;
-      --c-depot: #f0a500;
-      --c-camp: #58a6ff;
-      --c-route: #3fb950;
-      --font-mono: 'Space Mono', monospace;
-      --font-sans: 'IBM Plex Sans', sans-serif;
+      --c-bg:#0d1117; --c-surface:#161b22; --c-surface2:#1c2230;
+      --c-border:#30363d; --c-text:#e6edf3; --c-muted:#7d8590;
+      --c-danger:#ff6b6b; --c-warn:#f0a500; --c-success:#3fb950;
+      --c-info:#58a6ff; --c-purple:#bc8cff;
+      --font-mono:'Space Mono',monospace; --font-sans:'IBM Plex Sans',sans-serif;
     }
+    html,body { height:100%; background:var(--c-bg); color:var(--c-text); font-family:var(--font-sans); font-size:13px; overflow:hidden; }
+    .app { display:grid; grid-template-columns:230px 1fr 230px; grid-template-rows:46px 1fr 38px; height:100vh; }
 
-    html, body {
-      height: 100%;
-      background: var(--c-bg);
-      color: var(--c-text);
-      font-family: var(--font-sans);
-      font-size: 13px;
-      overflow: hidden;
-    }
+    .header { grid-column:1/-1; background:var(--c-surface); border-bottom:1px solid var(--c-border); display:flex; align-items:center; padding:0 16px; gap:10px; }
+    .logo { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--c-warn); letter-spacing:.08em; white-space:nowrap; }
+    .logo span { color:var(--c-muted); font-weight:400; }
+    .header-pills { display:flex; gap:6px; flex-wrap:nowrap; }
+    .pill { font-size:10px; padding:2px 8px; border-radius:99px; font-family:var(--font-mono); white-space:nowrap; }
+    .pill-warn { background:#f0a50018; color:var(--c-warn); border:1px solid #f0a50040; }
+    .pill-ok   { background:#3fb95018; color:var(--c-success); border:1px solid #3fb95040; }
+    .pill-info { background:#58a6ff18; color:var(--c-info); border:1px solid #58a6ff40; }
+    .pill-err  { background:#ff6b6b18; color:var(--c-danger); border:1px solid #ff6b6b40; }
+    .pill-fog  { background:#bc8cff18; color:var(--c-purple); border:1px solid #bc8cff40; }
 
-    .app {
-      display: grid;
-      grid-template-columns: 230px 1fr 210px;
-      grid-template-rows: 46px 1fr 38px;
-      height: 100vh;
-      min-height: 560px;
-    }
+    .panel-left { background:var(--c-surface); border-right:1px solid var(--c-border); overflow-y:auto; display:flex; flex-direction:column; }
+    .panel-left::-webkit-scrollbar { width:4px; }
+    .panel-left::-webkit-scrollbar-thumb { background:var(--c-border); border-radius:2px; }
+    .panel-section { padding:10px 13px; border-bottom:1px solid var(--c-border); }
+    .panel-section:last-child { flex:1; border-bottom:none; }
+    .plabel { font-size:10px; font-family:var(--font-mono); color:var(--c-muted); letter-spacing:.1em; text-transform:uppercase; margin-bottom:8px; }
 
-    /* ── Header ── */
-    .header {
-      grid-column: 1 / -1;
-      background: var(--c-surface);
-      border-bottom: 1px solid var(--c-border);
-      display: flex;
-      align-items: center;
-      padding: 0 16px;
-      gap: 14px;
-    }
-    .logo {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--c-warn);
-      letter-spacing: .08em;
-      white-space: nowrap;
-    }
-    .logo span { color: var(--c-muted); font-weight: 400; }
-    .header-pills { display: flex; gap: 8px; }
-    .status-pill {
-      font-size: 10px;
-      padding: 2px 9px;
-      border-radius: 99px;
-      font-family: var(--font-mono);
-      letter-spacing: .04em;
-      white-space: nowrap;
-    }
-    .pill-warn  { background: #f0a50018; color: var(--c-warn);    border: 1px solid #f0a50040; }
-    .pill-ok    { background: #3fb95018; color: var(--c-success);  border: 1px solid #3fb95040; }
-    .pill-info  { background: #58a6ff18; color: var(--c-info);     border: 1px solid #58a6ff40; }
-    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-    .sim-label { font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); }
-    .toggle-track {
-      width: 30px; height: 16px;
-      background: var(--c-warn);
-      border-radius: 99px;
-      position: relative;
-      cursor: pointer;
-      display: inline-block;
-    }
-    .toggle-knob {
-      width: 12px; height: 12px;
-      background: #000;
-      border-radius: 50%;
-      position: absolute;
-      top: 2px; right: 2px;
-      transition: transform .2s;
-    }
+    .scenario-btn { width:100%; padding:7px 10px; margin-bottom:4px; background:var(--c-surface2); border:1px solid var(--c-border); border-radius:5px; color:var(--c-muted); font-size:10px; cursor:pointer; text-align:left; font-family:var(--font-mono); transition:all .15s; }
+    .scenario-btn:hover { color:var(--c-text); }
+    .scenario-btn.sel { color:var(--c-info); border-color:var(--c-info); background:#58a6ff10; }
+    .scenario-desc { font-size:10px; color:var(--c-muted); line-height:1.5; margin-bottom:8px; }
 
-    /* ── Left Panel ── */
-    .panel-left {
-      background: var(--c-surface);
-      border-right: 1px solid var(--c-border);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
-    .panel-left::-webkit-scrollbar { width: 4px; }
-    .panel-left::-webkit-scrollbar-track { background: transparent; }
-    .panel-left::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+    .crow { display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; }
+    .clabel { color:var(--c-muted); font-size:11px; }
+    .cval { font-family:var(--font-mono); font-size:11px; color:var(--c-text); }
+    input[type=range] { width:100%; accent-color:var(--c-info); margin:3px 0 9px; cursor:pointer; height:4px; }
 
-    .panel-section {
-      padding: 10px 13px;
-      border-bottom: 1px solid var(--c-border);
-    }
-    .panel-section:last-child { flex: 1; border-bottom: none; }
-    .panel-label {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--c-muted);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      margin-bottom: 9px;
-    }
+    .zone-chip { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; margin-bottom:3px; background:var(--c-surface2); border:1px solid var(--c-border); border-radius:5px; font-family:var(--font-mono); font-size:10px; cursor:pointer; transition:border-color .15s; }
+    .zone-chip:hover { border-color:var(--c-danger); }
+    .zone-chip.blocked { background:#ff6b6b10; border-color:var(--c-danger); text-decoration:line-through; color:var(--c-danger); }
+    .zone-chip.fog { background:#bc8cff10; border-color:var(--c-purple); color:var(--c-purple); }
+    .zone-chip.fog-blocked { background:#ff6b6b10; border-color:var(--c-danger); color:var(--c-danger); }
+    .zone-chip-name { font-weight:700; color:var(--c-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; }
+    .zone-chip.blocked .zone-chip-name, .zone-chip.fog .zone-chip-name { color:inherit; }
+    .zone-chip-meta { font-size:9px; color:var(--c-muted); text-align:right; flex-shrink:0; }
 
-    .algo-btn {
-      width: 100%;
-      padding: 7px 10px;
-      margin-bottom: 4px;
-      background: var(--c-surface2);
-      border: 1px solid var(--c-border);
-      border-radius: 6px;
-      color: var(--c-text);
-      font-family: var(--font-mono);
-      font-size: 10px;
-      cursor: pointer;
-      text-align: left;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: border-color .15s, background .15s;
-    }
-    .algo-btn:hover { border-color: var(--c-info); }
-    .algo-btn.active { border-color: var(--c-warn); background: #f0a50010; color: var(--c-warn); }
-    .algo-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .dot-greedy   { background: var(--c-warn); }
-    .dot-dp       { background: var(--c-success); }
-    .dot-dijkstra { background: var(--c-info); }
-    .dot-bb       { background: var(--c-purple); }
+    .tick-btn { width:100%; padding:6px; margin-bottom:4px; background:var(--c-surface2); border:1px solid var(--c-border); border-radius:5px; color:var(--c-purple); font-family:var(--font-mono); font-size:10px; cursor:pointer; transition:all .15s; }
+    .tick-btn:hover { background:#bc8cff18; border-color:var(--c-purple); }
 
-    .constraint-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 3px;
-    }
-    .constraint-label { color: var(--c-muted); font-size: 11px; }
-    .constraint-val   { font-family: var(--font-mono); font-size: 11px; color: var(--c-text); }
+    .map-area { position:relative; display:flex; flex-direction:column; overflow:hidden; }
+    .compare-header { display:flex; background:var(--c-surface2); border-bottom:1px solid var(--c-border); flex-shrink:0; }
+    .compare-tab { flex:1; padding:6px 10px; font-family:var(--font-mono); font-size:10px; color:var(--c-muted); text-align:center; cursor:pointer; border:none; background:transparent; transition:all .15s; }
+    .compare-tab.active { color:var(--c-warn); border-bottom:2px solid var(--c-warn); }
+    .compare-tab.pq-active { color:var(--c-info); border-bottom:2px solid var(--c-info); }
+    .maps-container { flex:1; display:flex; position:relative; min-height:0; }
+    #map-greedy, #map-pq { flex:1; min-height:0; }
+    #map-pq { display:none; border-left:1px solid var(--c-border); }
+    .map-badge-overlay { position:absolute; top:10px; left:10px; z-index:1000; display:flex; flex-direction:column; gap:4px; pointer-events:none; }
+    .map-badge-overlay-right { position:absolute; top:10px; right:10px; z-index:1000; display:flex; flex-direction:column; gap:4px; pointer-events:none; }
+    .mbadge { background:rgba(22,27,34,.9); border:1px solid var(--c-border); border-radius:4px; padding:3px 8px; font-family:var(--font-mono); font-size:10px; color:var(--c-muted); backdrop-filter:blur(4px); }
+    .mbadge b { color:var(--c-text); }
+    .map-actions { position:absolute; bottom:14px; right:14px; z-index:1000; display:flex; gap:8px; align-items:center; }
+    .btn-run { background:var(--c-warn); color:#000; border:none; padding:8px 18px; border-radius:6px; font-family:var(--font-mono); font-size:11px; font-weight:700; cursor:pointer; letter-spacing:.04em; transition:opacity .15s; }
+    .btn-run:hover { opacity:.85; }
+    .btn-run:disabled { opacity:.5; cursor:default; }
+    .btn-reveal { background:var(--c-surface); color:var(--c-purple); border:1px solid var(--c-purple); padding:8px 13px; border-radius:6px; font-family:var(--font-mono); font-size:11px; cursor:pointer; transition:background .15s; display:none; }
+    .btn-reveal:hover { background:#bc8cff18; }
+    .btn-reveal.show { display:block; }
+    .btn-replan { background:var(--c-surface); color:var(--c-info); border:1px solid var(--c-info); padding:8px 13px; border-radius:6px; font-family:var(--font-mono); font-size:11px; cursor:pointer; transition:background .15s; display:none; }
+    .btn-replan:hover { background:#58a6ff18; }
+    .btn-replan.show { display:block; }
+    #spinner { position:absolute; inset:0; background:rgba(13,17,23,.8); display:none; align-items:center; justify-content:center; z-index:2000; }
+    #spinner.on { display:flex; }
+    .spin-label { font-family:var(--font-mono); font-size:11px; color:var(--c-warn); }
 
-    input[type="range"] {
-      width: 100%;
-      accent-color: var(--c-info);
-      margin: 3px 0 9px;
-      cursor: pointer;
-      height: 4px;
-    }
+    .panel-right { background:var(--c-surface); border-left:1px solid var(--c-border); overflow-y:auto; display:flex; flex-direction:column; padding-bottom:8px; }
+    .panel-right::-webkit-scrollbar { width:4px; }
+    .panel-right::-webkit-scrollbar-thumb { background:var(--c-border); border-radius:2px; }
 
-    .scenario-btn {
-      width: 100%;
-      padding: 6px 10px;
-      margin-bottom: 4px;
-      background: var(--c-surface2);
-      border: 1px solid var(--c-border);
-      border-radius: 5px;
-      color: var(--c-muted);
-      font-size: 10px;
-      cursor: pointer;
-      text-align: left;
-      font-family: var(--font-mono);
-      transition: color .15s, border-color .15s, background .15s;
-    }
-    .scenario-btn:hover { color: var(--c-text); border-color: var(--c-border); }
-    .scenario-btn.sel   { color: var(--c-info); border-color: var(--c-info); background: #58a6ff10; }
+    .compare-metrics { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px 10px 0; }
+    .metric-card { background:var(--c-surface2); border:1px solid var(--c-border); border-radius:8px; padding:9px 10px; }
+    .metric-card.greedy-card { border-color:#f0a50044; }
+    .metric-card.pq-card { border-color:#58a6ff44; }
+    .metric-label { font-size:9px; color:var(--c-muted); font-family:var(--font-mono); letter-spacing:.05em; margin-bottom:3px; }
+    .metric-val { font-size:18px; font-weight:700; font-family:var(--font-mono); }
+    .metric-sub { font-size:9px; color:var(--c-muted); margin-top:2px; }
+    .val-green { color:var(--c-success); }
+    .val-warn  { color:var(--c-warn); }
+    .val-red   { color:var(--c-danger); }
+    .val-blue  { color:var(--c-info); }
 
-    /* ── Map ── */
-    .map-wrap {
-      position: relative;
-      overflow: hidden;
-      background: var(--c-bg);
-    }
-    #map-canvas { display: block; width: 100%; height: 100%; }
-    .map-overlay {
-      position: absolute;
-      top: 10px; left: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      pointer-events: none;
-    }
-    .map-badge {
-      background: var(--c-surface);
-      border: 1px solid var(--c-border);
-      border-radius: 4px;
-      padding: 3px 9px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--c-muted);
-    }
-    .map-badge b { color: var(--c-text); }
+    .algo-header { display:flex; gap:4px; padding:8px 10px 0; }
+    .algo-tag { flex:1; text-align:center; padding:4px; border-radius:4px; font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.05em; }
+    .algo-tag-greedy { background:#f0a50018; color:var(--c-warn); border:1px solid #f0a50040; }
+    .algo-tag-pq     { background:#58a6ff18; color:var(--c-info); border:1px solid #58a6ff40; }
 
-    .map-actions {
-      position: absolute;
-      bottom: 12px; right: 12px;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .btn-interrupt {
-      background: var(--c-surface);
-      color: var(--c-danger);
-      border: 1px solid var(--c-danger);
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      cursor: pointer;
-      transition: background .15s;
-    }
-    .btn-interrupt:hover { background: #ff6b6b18; }
-    .btn-run {
-      background: var(--c-warn);
-      color: #000;
-      border: none;
-      padding: 8px 20px;
-      border-radius: 6px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: .04em;
-      transition: opacity .15s;
-    }
-    .btn-run:hover { opacity: .85; }
-    .btn-run:disabled { opacity: .5; cursor: default; }
+    .winner-badge { margin:6px 10px 0; padding:6px 10px; border-radius:6px; font-family:var(--font-mono); font-size:10px; text-align:center; }
+    .winner-badge.tie     { background:#7d859018; color:var(--c-muted); border:1px solid var(--c-border); }
+    .winner-badge.greedy  { background:#f0a50018; color:var(--c-warn); border:1px solid #f0a50040; }
+    .winner-badge.pq      { background:#58a6ff18; color:var(--c-info); border:1px solid #58a6ff40; }
 
-    /* ── Right Panel ── */
-    .panel-right {
-      background: var(--c-surface);
-      border-left: 1px solid var(--c-border);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      padding-bottom: 8px;
-    }
-    .panel-right::-webkit-scrollbar { width: 4px; }
-    .panel-right::-webkit-scrollbar-track { background: transparent; }
-    .panel-right::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+    .supply-bar-wrap { margin:8px 10px 0; background:var(--c-surface2); border:1px solid var(--c-border); border-radius:8px; padding:9px 10px; }
+    .supply-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+    .supply-row:last-child { margin-bottom:0; }
+    .supply-label { font-size:10px; color:var(--c-muted); font-family:var(--font-mono); width:52px; flex-shrink:0; }
+    .supply-track { flex:1; height:6px; background:var(--c-border); border-radius:3px; overflow:hidden; }
+    .supply-fill { height:100%; border-radius:3px; transition:width .4s; }
+    .supply-val { font-size:9px; color:var(--c-muted); font-family:var(--font-mono); width:36px; text-align:right; flex-shrink:0; }
 
-    .metric-card {
-      margin: 8px 10px 0;
-      background: var(--c-surface2);
-      border: 1px solid var(--c-border);
-      border-radius: 8px;
-      padding: 10px 13px;
-    }
-    .metric-name { font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); letter-spacing: .06em; margin-bottom: 4px; }
-    .metric-val  { font-size: 22px; font-weight: 600; font-family: var(--font-mono); }
-    .metric-sub  { font-size: 10px; color: var(--c-muted); margin-top: 2px; }
-    .val-green { color: var(--c-success); }
-    .val-warn  { color: var(--c-warn); }
-    .val-red   { color: var(--c-danger); }
+    .truck-section { padding:6px 10px 0; }
+    .truck-card { background:var(--c-surface2); border:1px solid var(--c-border); border-radius:6px; padding:7px 9px; margin-bottom:4px; }
+    .truck-header { font-family:var(--font-mono); font-size:10px; margin-bottom:3px; display:flex; justify-content:space-between; }
+    .truck-route { font-size:9px; color:var(--c-muted); font-family:var(--font-mono); line-height:1.5; }
+    .truck-stat { font-size:9px; color:var(--c-info); margin-top:2px; font-family:var(--font-mono); }
+    .truck-supply { display:flex; gap:6px; margin-top:3px; }
+    .ts-chip { font-size:9px; padding:1px 5px; border-radius:3px; font-family:var(--font-mono); }
+    .ts-food     { background:#3fb95018; color:var(--c-success); }
+    .ts-medicine { background:#ff6b6b18; color:var(--c-danger); }
+    .ts-shelter  { background:#f0a50018; color:var(--c-warn); }
 
-    .log-wrap { margin: 10px 10px 0; flex: 1; }
-    .log-header {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--c-muted);
-      letter-spacing: .1em;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-    .log-entry {
-      font-size: 10px;
-      font-family: var(--font-mono);
-      padding: 3px 0;
-      border-bottom: 1px solid var(--c-border);
-      color: var(--c-muted);
-      display: flex;
-      gap: 6px;
-      line-height: 1.5;
-    }
-    .log-time  { color: var(--c-muted); flex-shrink: 0; }
-    .log-ok    { color: var(--c-success); }
-    .log-warn  { color: var(--c-warn); }
-    .log-err   { color: var(--c-danger); }
+    .live-ticker { margin:6px 10px 0; background:var(--c-surface2); border:1px solid var(--c-border); border-radius:8px; padding:8px 10px; }
+    .ticker-row { display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; margin-bottom:3px; }
+    .ticker-label { color:var(--c-muted); }
+    .ticker-val { color:var(--c-text); }
 
-    /* ── Footer ── */
-    .footer {
-      grid-column: 1 / -1;
-      background: var(--c-surface);
-      border-top: 1px solid var(--c-border);
-      display: flex;
-      align-items: center;
-      padding: 0 14px;
-      gap: 12px;
-      overflow-x: auto;
-    }
-    .legend { display: flex; gap: 14px; align-items: center; flex-wrap: nowrap; }
-    .leg-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); white-space: nowrap; }
-    .leg-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .footer-right { margin-left: auto; font-size: 10px; color: var(--c-muted); font-family: var(--font-mono); white-space: nowrap; }
+    .log-wrap { margin:8px 10px 0; flex:1; }
+    .log-header { font-size:10px; font-family:var(--font-mono); color:var(--c-muted); letter-spacing:.1em; text-transform:uppercase; margin-bottom:5px; }
+    .log-entry { font-size:10px; font-family:var(--font-mono); padding:3px 0; border-bottom:1px solid var(--c-border); display:flex; gap:6px; line-height:1.5; }
+    .log-time { color:var(--c-muted); flex-shrink:0; }
+    .log-ok   { color:var(--c-success); }
+    .log-warn { color:var(--c-warn); }
+    .log-err  { color:var(--c-danger); }
+    .log-fog  { color:var(--c-purple); }
 
-    /* ── Tooltip ── */
-    #tooltip {
-      position: fixed;
-      background: var(--c-surface);
-      border: 1px solid var(--c-border);
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--c-text);
-      pointer-events: none;
-      display: none;
-      z-index: 100;
-      line-height: 1.7;
-    }
+    .footer { grid-column:1/-1; background:var(--c-surface); border-top:1px solid var(--c-border); display:flex; align-items:center; padding:0 14px; gap:10px; overflow-x:auto; }
+    .legend { display:flex; gap:12px; align-items:center; }
+    .leg-item { display:flex; align-items:center; gap:4px; font-size:10px; color:var(--c-muted); font-family:var(--font-mono); white-space:nowrap; }
+    .leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .footer-right { margin-left:auto; font-size:10px; color:var(--c-muted); font-family:var(--font-mono); white-space:nowrap; }
 
-    @media (max-width: 760px) {
-      .app {
-        grid-template-columns: 180px 1fr;
-        grid-template-rows: 46px 1fr 1fr 38px;
-      }
-      .panel-right { display: none; }
-      .header-pills .pill-info { display: none; }
-    }
+    .leaflet-container { background:#0d1117 !important; }
+    .leaflet-tile { filter:brightness(.7) saturate(.6) hue-rotate(195deg); }
+    .leaflet-control-zoom a { background:var(--c-surface) !important; color:var(--c-text) !important; border-color:var(--c-border) !important; }
+    .custom-marker { display:flex; align-items:center; justify-content:center; border-radius:50%; font-family:var(--font-mono); font-weight:700; font-size:11px; border:2px solid; box-shadow:0 2px 8px rgba(0,0,0,.5); }
+    .depot-marker { background:#f0a50033; border-color:#f0a500; color:#f0a500; border-radius:4px !important; font-size:9px; padding:3px 5px; white-space:nowrap; }
   </style>
 </head>
 <body>
-
 <div class="app">
 
-  <!-- ── Header ── -->
   <header class="header">
     <div class="logo">EAOPT <span>/ emergency aid optimizer</span></div>
     <div class="header-pills">
-      <div class="status-pill pill-warn">● CONFLICT ACTIVE</div>
-      <div class="status-pill pill-ok" id="depot-pill">● 4 DEPOTS ONLINE</div>
-      <div class="status-pill pill-info">● 7 CAMPS QUEUED</div>
-    </div>
-    <div class="header-right">
-      <span class="sim-label">SIM</span>
-      <div class="toggle-track" id="sim-toggle" title="Toggle simulation mode">
-        <div class="toggle-knob"></div>
-      </div>
+      <div class="pill pill-warn">● CONFLICT ACTIVE</div>
+      <div class="pill pill-ok" id="pill-zones">● —</div>
+      <div class="pill pill-info" id="pill-trucks">● —</div>
+      <div class="pill pill-fog" id="pill-fog" style="display:none">● — FOG</div>
+      <div class="pill pill-err" id="pill-blocked" style="display:none">● — BLOCKED</div>
     </div>
   </header>
 
-  <!-- ── Left Panel ── -->
   <aside class="panel-left">
-
     <div class="panel-section">
-      <div class="panel-label">Algorithm</div>
-      <button class="algo-btn active" data-algo="GREEDY">
-        <span class="algo-dot dot-greedy"></span>Greedy priority
-      </button>
-      <button class="algo-btn" data-algo="DP KNAPSACK">
-        <span class="algo-dot dot-dp"></span>DP knapsack
-      </button>
-      <button class="algo-btn" data-algo="DIJKSTRA">
-        <span class="algo-dot dot-dijkstra"></span>Dijkstra routing
-      </button>
-      <button class="algo-btn" data-algo="BRANCH+BOUND">
-        <span class="algo-dot dot-bb"></span>Branch + bound
-      </button>
+      <div class="plabel">Scenario</div>
+      <div id="scenario-list"></div>
+      <div class="scenario-desc" id="scenario-desc"></div>
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">Constraints</div>
-
-      <div class="constraint-row">
-        <span class="constraint-label">Max trucks</span>
-        <span class="constraint-val" id="v-trucks">6</span>
-      </div>
-      <input type="range" min="1" max="12" value="6"
-        oninput="document.getElementById('v-trucks').textContent = this.value">
-
-      <div class="constraint-row">
-        <span class="constraint-label">Fuel budget</span>
-        <span class="constraint-val" id="v-fuel">70%</span>
-      </div>
-      <input type="range" min="10" max="100" value="70"
-        oninput="document.getElementById('v-fuel').textContent = this.value + '%'">
-
-      <div class="constraint-row">
-        <span class="constraint-label">Time window</span>
-        <span class="constraint-val" id="v-time">48h</span>
-      </div>
-      <input type="range" min="6" max="96" value="48" step="6"
-        oninput="document.getElementById('v-time').textContent = this.value + 'h'">
-
-      <div class="constraint-row">
-        <span class="constraint-label">Danger threshold</span>
-        <span class="constraint-val" id="v-danger">Med</span>
-      </div>
-      <input type="range" min="1" max="3" value="2" step="1"
-        oninput="document.getElementById('v-danger').textContent = ['Low','Med','High'][this.value - 1]">
+      <div class="plabel">Fleet Config</div>
+      <div class="crow"><span class="clabel">Trucks</span><span class="cval" id="v-trucks">4</span></div>
+      <input type="range" id="r-trucks" min="1" max="8" value="4" oninput="document.getElementById('v-trucks').textContent=this.value">
+      <div class="crow"><span class="clabel">Capacity (kg)</span><span class="cval" id="v-cap">14,000</span></div>
+      <input type="range" id="r-cap" min="5000" max="30000" value="14000" step="1000" oninput="document.getElementById('v-cap').textContent=parseInt(this.value).toLocaleString()">
     </div>
 
     <div class="panel-section">
-      <div class="panel-label">Scenario</div>
-      <button class="scenario-btn sel">Urban siege</button>
-      <button class="scenario-btn">Flood aftermath</button>
-      <button class="scenario-btn">Border displacement</button>
-      <button class="scenario-btn">Custom…</button>
+      <div class="plabel">Time Simulation</div>
+      <div class="crow"><span class="clabel">Hours per tick</span><span class="cval" id="v-tick">24</span>h</div>
+      <input type="range" id="r-tick" min="6" max="72" value="24" step="6" oninput="document.getElementById('v-tick').textContent=this.value">
+      <div style="font-size:9px;color:var(--c-muted);font-family:var(--font-mono);margin-bottom:6px">Elapsed: <span id="elapsed-display" style="color:var(--c-purple)">0h</span></div>
+      <button class="tick-btn" onclick="advanceTick()">⏱ ADVANCE TIME</button>
+      <button class="tick-btn" style="color:var(--c-muted)" onclick="resetTime()">↺ RESET TIME</button>
     </div>
 
-    <div class="panel-section">
-      <div class="panel-label">Priority weights</div>
-
-      <div class="constraint-row">
-        <span class="constraint-label">Medical</span>
-        <span class="constraint-val" id="w-med">40%</span>
-      </div>
-      <input type="range" min="0" max="100" value="40"
-        oninput="document.getElementById('w-med').textContent = this.value + '%'">
-
-      <div class="constraint-row">
-        <span class="constraint-label">Food</span>
-        <span class="constraint-val" id="w-food">35%</span>
-      </div>
-      <input type="range" min="0" max="100" value="35"
-        oninput="document.getElementById('w-food').textContent = this.value + '%'">
-
-      <div class="constraint-row">
-        <span class="constraint-label">Shelter kits</span>
-        <span class="constraint-val" id="w-shel">25%</span>
-      </div>
-      <input type="range" min="0" max="100" value="25"
-        oninput="document.getElementById('w-shel').textContent = this.value + '%'">
+    <div class="panel-section" style="flex:1">
+      <div class="plabel">Zones <span style="color:var(--c-muted);font-size:9px">(click to block)</span></div>
+      <div id="zone-list"></div>
     </div>
-
   </aside>
 
-  <!-- ── Map ── -->
-  <main class="map-wrap">
-    <canvas id="map-canvas"></canvas>
-    <div class="map-overlay">
-      <div class="map-badge">ZONE <b>NW-4</b></div>
-      <div class="map-badge">ROADS <b>14 active / 3 blocked</b></div>
-      <div class="map-badge" id="algo-badge">ALGO <b>GREEDY</b></div>
+  <div class="map-area">
+    <div class="compare-header">
+      <button class="compare-tab active" id="tab-greedy" onclick="switchTab('greedy')">GREEDY — Score-based priority</button>
+      <button class="compare-tab" id="tab-pq" onclick="switchTab('pq')">PRIORITY QUEUE — Min-heap dispatch</button>
+      <button class="compare-tab" id="tab-both" onclick="switchTab('both')">SIDE BY SIDE</button>
     </div>
-    <div class="map-actions">
-      <button class="btn-interrupt" id="block-btn" title="Simulate a road blockage">✕ BLOCK ROAD</button>
-      <button class="btn-run" id="run-btn">▶ RUN OPTIMIZER</button>
+    <div class="maps-container">
+      <div id="map-greedy"></div>
+      <div id="map-pq"></div>
+      <div class="map-badge-overlay">
+        <div class="mbadge" id="badge-scenario">SCENARIO <b>—</b></div>
+        <div class="mbadge" id="badge-coverage-g">GREEDY <b>—</b></div>
+        <div class="mbadge" id="badge-coverage-p">PQ <b>—</b></div>
+      </div>
+      <div class="map-badge-overlay-right">
+        <div class="mbadge" id="badge-time">TIME <b>+0h</b></div>
+      </div>
+      <div id="spinner"><span class="spin-label">⏳ RUNNING OPTIMIZER…</span></div>
+      <div class="map-actions">
+        <button class="btn-reveal" id="btn-reveal" onclick="revealFog()">👁 REVEAL FOG ZONES</button>
+        <button class="btn-replan" id="btn-replan" onclick="runOptimizer()">↺ RE-PLAN</button>
+        <button class="btn-run" id="run-btn" onclick="runOptimizer()">▶ RUN OPTIMIZER</button>
+      </div>
     </div>
-  </main>
+  </div>
 
-  <!-- ── Right Panel ── -->
   <aside class="panel-right">
-    <div class="metric-card">
-      <div class="metric-name">COVERAGE</div>
-      <div class="metric-val val-green" id="m-coverage">83%</div>
-      <div class="metric-sub">5,810 / 7,000 served</div>
+    <div class="algo-header">
+      <div class="algo-tag algo-tag-greedy">GREEDY</div>
+      <div class="algo-tag algo-tag-pq">PRIORITY QUEUE</div>
     </div>
-    <div class="metric-card">
-      <div class="metric-name">UNMET NEED</div>
-      <div class="metric-val val-warn" id="m-unmet">1,190</div>
-      <div class="metric-sub">2 camps unreachable</div>
+
+    <div class="compare-metrics" id="compare-metrics">
+      <div class="metric-card greedy-card">
+        <div class="metric-label">COVERAGE</div>
+        <div class="metric-val val-warn" id="g-coverage">—</div>
+        <div class="metric-sub" id="g-coverage-sub">—</div>
+      </div>
+      <div class="metric-card pq-card">
+        <div class="metric-label">COVERAGE</div>
+        <div class="metric-val val-blue" id="p-coverage">—</div>
+        <div class="metric-sub" id="p-coverage-sub">—</div>
+      </div>
+      <div class="metric-card greedy-card">
+        <div class="metric-label">AID (tonnes)</div>
+        <div class="metric-val val-warn" id="g-kg">—</div>
+        <div class="metric-sub" id="g-kg-sub">—</div>
+      </div>
+      <div class="metric-card pq-card">
+        <div class="metric-label">AID (tonnes)</div>
+        <div class="metric-val val-blue" id="p-kg">—</div>
+        <div class="metric-sub" id="p-kg-sub">—</div>
+      </div>
+      <div class="metric-card greedy-card">
+        <div class="metric-label">URGENCY SUM</div>
+        <div class="metric-val val-warn" id="g-urg">—</div>
+        <div class="metric-sub">greedy served</div>
+      </div>
+      <div class="metric-card pq-card">
+        <div class="metric-label">URGENCY SUM</div>
+        <div class="metric-val val-blue" id="p-urg">—</div>
+        <div class="metric-sub">pq served</div>
+      </div>
+      <div class="metric-card greedy-card">
+        <div class="metric-label">TOTAL HOURS</div>
+        <div class="metric-val val-warn" id="g-hrs">—</div>
+        <div class="metric-sub">combined fleet</div>
+      </div>
+      <div class="metric-card pq-card">
+        <div class="metric-label">TOTAL HOURS</div>
+        <div class="metric-val val-blue" id="p-hrs">—</div>
+        <div class="metric-sub">combined fleet</div>
+      </div>
     </div>
-    <div class="metric-card">
-      <div class="metric-name">EFFICIENCY</div>
-      <div class="metric-val val-green" id="m-eff">91%</div>
-      <div class="metric-sub">vs greedy baseline</div>
+
+    <div class="winner-badge tie" id="winner-badge">Run optimizer to compare algorithms</div>
+
+    <div class="supply-bar-wrap" id="supply-bars">
+      <div class="plabel" style="margin-bottom:6px">Supply breakdown (greedy)</div>
+      <div class="supply-row">
+        <div class="supply-label">🍞 Food</div>
+        <div class="supply-track"><div class="supply-fill" id="sf-food" style="width:0%;background:#3fb950"></div></div>
+        <div class="supply-val" id="sv-food">0t</div>
+      </div>
+      <div class="supply-row">
+        <div class="supply-label">💊 Medicine</div>
+        <div class="supply-track"><div class="supply-fill" id="sf-med" style="width:0%;background:#ff6b6b"></div></div>
+        <div class="supply-val" id="sv-med">0t</div>
+      </div>
+      <div class="supply-row">
+        <div class="supply-label">🏠 Shelter</div>
+        <div class="supply-track"><div class="supply-fill" id="sf-shel" style="width:0%;background:#f0a500"></div></div>
+        <div class="supply-val" id="sv-shel">0t</div>
+      </div>
     </div>
-    <div class="metric-card">
-      <div class="metric-name">AVG ROUTE RISK</div>
-      <div class="metric-val val-warn" id="m-risk">2.4</div>
-      <div class="metric-sub">scale 1–5</div>
+
+    <div class="live-ticker" id="live-ticker">
+      <div class="plabel" style="margin-bottom:5px">Live counters</div>
+      <div class="ticker-row"><span class="ticker-label">Km dispatched</span><span class="ticker-val" id="tk-km">0 km</span></div>
+      <div class="ticker-row"><span class="ticker-label">Hours en-route</span><span class="ticker-val" id="tk-hrs">0h</span></div>
+      <div class="ticker-row"><span class="ticker-label">Zones confirmed</span><span class="ticker-val" id="tk-zones">0</span></div>
+    </div>
+
+    <div class="truck-section">
+      <div class="plabel" style="margin:6px 0 4px">Truck assignments</div>
+      <div id="truck-cards"></div>
     </div>
 
     <div class="log-wrap">
       <div class="log-header">Activity log</div>
       <div id="log-list">
-        <div class="log-entry"><span class="log-time">09:14</span><span class="log-ok">Depot D2 → Camp C5 assigned</span></div>
-        <div class="log-entry"><span class="log-time">09:12</span><span class="log-warn">Route R7 blocked — rerouting</span></div>
-        <div class="log-entry"><span class="log-time">09:10</span><span class="log-ok">Triage complete — 7 camps ranked</span></div>
-        <div class="log-entry"><span class="log-time">09:08</span><span class="log-err">Camp C6 unreachable (danger)</span></div>
-        <div class="log-entry"><span class="log-time">09:05</span><span class="log-ok">Scenario loaded: urban siege</span></div>
-        <div class="log-entry"><span class="log-time">09:00</span><span class="log-ok">System initialised</span></div>
+        <div class="log-entry"><span class="log-time">--:--</span><span class="log-ok">System ready — select scenario and press RUN</span></div>
       </div>
     </div>
   </aside>
 
-  <!-- ── Footer ── -->
   <footer class="footer">
     <div class="legend">
-      <div class="leg-item"><div class="leg-dot" style="background:var(--c-depot)"></div>Aid depot</div>
-      <div class="leg-item"><div class="leg-dot" style="background:var(--c-camp)"></div>Refugee camp</div>
-      <div class="leg-item"><div class="leg-dot" style="background:var(--c-success)"></div>Active route</div>
-      <div class="leg-item"><div class="leg-dot" style="background:var(--c-danger)"></div>Blocked road</div>
-      <div class="leg-item"><div class="leg-dot" style="background:var(--c-purple)"></div>High-risk zone</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f0a500"></div>Depot</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ff6b6b"></div>High urgency</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f0a500;opacity:.7"></div>Med urgency</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#58a6ff"></div>Low urgency</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#bc8cff"></div>Fog of war</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ff6b6b;opacity:.3"></div>Blocked</div>
     </div>
-    <div class="footer-right">EAOPT v0.1 · CS Capstone 2026</div>
+    <div class="footer-right">EAOPT v2.0 · CS Capstone 2026</div>
   </footer>
 
 </div>
 
-<!-- Tooltip -->
-<div id="tooltip"></div>
-
 <script>
-// ── Data ──────────────────────────────────────────────────────────────────────
-const DEPOTS = [
-  { x: .15, y: .20, label: 'D1', supply: 85 },
-  { x: .70, y: .15, label: 'D2', supply: 60 },
-  { x: .80, y: .75, label: 'D3', supply: 90 },
-  { x: .20, y: .80, label: 'D4', supply: 40 },
-];
+const TRUCK_COLORS = ['#3fb950','#58a6ff','#bc8cff','#ffa657','#ff9500','#79c0ff','#d2a8ff','#f0a500'];
 
-const CAMPS = [
-  { x: .35, y: .30, label: 'C1', pop: 1200, urgency: 5 },
-  { x: .55, y: .20, label: 'C2', pop:  800, urgency: 3 },
-  { x: .50, y: .45, label: 'C3', pop: 2100, urgency: 5 },
-  { x: .65, y: .60, label: 'C4', pop:  600, urgency: 2 },
-  { x: .30, y: .60, label: 'C5', pop:  900, urgency: 4 },
-  { x: .45, y: .75, label: 'C6', pop:  400, urgency: 1 },
-  { x: .75, y: .45, label: 'C7', pop: 1000, urgency: 4 },
-];
+const state = {
+  scenario: 'aleppo',
+  blockedZones: new Set(),
+  revealedFog: {},
+  lastResult: null,
+  currentZones: [],
+  elapsedHours: 0,
+  servedIds: new Set(),
+  fogSeed: Math.floor(Math.random() * 9999),
+  activeTab: 'greedy',
+  tickerAnim: null,
+};
 
-const ROUTES = [
-  { from: DEPOTS[0], to: CAMPS[0], active: true  },
-  { from: DEPOTS[0], to: CAMPS[4], active: true  },
-  { from: DEPOTS[1], to: CAMPS[1], active: true  },
-  { from: DEPOTS[1], to: CAMPS[3], active: true  },
-  { from: DEPOTS[2], to: CAMPS[6], active: true  },
-  { from: DEPOTS[3], to: CAMPS[4], active: true  },
-  { from: DEPOTS[1], to: CAMPS[2], active: false }, // blocked
-];
+let mapG = null, mapP = null;
+const layersG = { routes: [], markers: [] };
+const layersP = { routes: [], markers: [] };
 
-const BLOCKED_ROADS = [
-  { x1: .42, y1: .52, x2: .52, y2: .37 },
-];
-
-const BG_ROADS = [
-  [DEPOTS[0], CAMPS[0]], [DEPOTS[0], CAMPS[4]],
-  [DEPOTS[1], CAMPS[1]], [DEPOTS[1], CAMPS[3]], [DEPOTS[1], CAMPS[2]],
-  [DEPOTS[2], CAMPS[6]], [DEPOTS[3], CAMPS[4]],
-  [CAMPS[0],  CAMPS[2]], [CAMPS[2],  CAMPS[5]], [CAMPS[4], CAMPS[5]],
-];
-
-// ── Canvas setup ─────────────────────────────────────────────────────────────
-const canvas = document.getElementById('map-canvas');
-const ctx    = canvas.getContext('2d');
-let W, H;
-
-function resizeCanvas() {
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width  = rect.width  * devicePixelRatio;
-  canvas.height = rect.height * devicePixelRatio;
-  canvas.style.width  = rect.width  + 'px';
-  canvas.style.height = rect.height + 'px';
-  ctx.scale(devicePixelRatio, devicePixelRatio);
-  W = rect.width;
-  H = rect.height;
-  draw(routeProgress);
+function initMaps() {
+  const tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const opts = { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 14, minZoom: 7 };
+  mapG = L.map('map-greedy', { zoomControl: true,  scrollWheelZoom: true }).setView([36.2, 37.15], 11);
+  mapP = L.map('map-pq',     { zoomControl: false, scrollWheelZoom: true }).setView([36.2, 37.15], 11);
+  L.tileLayer(tileUrl, opts).addTo(mapG);
+  L.tileLayer(tileUrl, opts).addTo(mapP);
+  mapG.on('moveend zoomend', () => { mapP.setView(mapG.getCenter(), mapG.getZoom(), { animate: false }); });
 }
 
-// ── Animation state ───────────────────────────────────────────────────────────
-let routeProgress = 0;
-let animating     = false;
-let animFrameId   = null;
-let pulsePhase    = 0;
-let blocked       = false;
+function clearLayers(layers, map) {
+  layers.routes.forEach(l => map.removeLayer(l));
+  layers.markers.forEach(l => map.removeLayer(l));
+  layers.routes = [];
+  layers.markers = [];
+}
 
-function lerp(a, b, t) { return a + (b - a) * t; }
+function urgencyColor(u) {
+  if (u >= 8) return '#ff6b6b';
+  if (u >= 5) return '#f0a500';
+  return '#58a6ff';
+}
 
-// ── Draw ──────────────────────────────────────────────────────────────────────
-function draw(progress = 1) {
-  ctx.clearRect(0, 0, W, H);
-
-  // Grid texture
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-  ctx.lineWidth   = 1;
-  for (let i = 0; i < W; i += 32) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke(); }
-  for (let i = 0; i < H; i += 32) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke(); }
-  ctx.restore();
-
-  // Danger zone radial glow
-  const gx = ctx.createRadialGradient(.50*W, .47*H, 0, .50*W, .47*H, .18*W);
-  gx.addColorStop(0,   'rgba(188,140,255,0.12)');
-  gx.addColorStop(1,   'rgba(188,140,255,0)');
-  ctx.fillStyle = gx;
-  ctx.beginPath();
-  ctx.arc(.50*W, .47*H, .18*W, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Background roads
-  ctx.save();
-  ctx.setLineDash([4, 7]);
-  ctx.lineWidth   = .8;
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-  BG_ROADS.forEach(([a, b]) => {
-    ctx.beginPath();
-    ctx.moveTo(a.x * W, a.y * H);
-    ctx.lineTo(b.x * W, b.y * H);
-    ctx.stroke();
+function makeZoneMarker(z, truckNum, truckColor, map, layers, algoKey) {
+  const col = urgencyColor(z.urgency);
+  const r = 10 + z.urgency * 1.2;
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="width:${r*2}px;height:${r*2}px;border-radius:50%;background:${col}22;border:2px solid ${col};display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:10px;font-weight:700;color:${col};box-shadow:0 2px 8px rgba(0,0,0,.5)">${z.id}</div>`,
+    iconSize: [r*2, r*2],
+    iconAnchor: [r, r],
   });
-  ctx.restore();
+  const marker = L.marker([z.lat, z.lng], { icon });
+  const supplyHtml = z.supply_types ? `<br>🍞 ${(z.supply_types.food/1000).toFixed(1)}t · 💊 ${(z.supply_types.medicine/1000).toFixed(1)}t · 🏠 ${(z.supply_types.shelter/1000).toFixed(1)}t` : '';
+  const truckHtml = truckNum ? `<br><span style="color:${truckColor}">✓ Assigned: Truck ${truckNum}</span>` : `<br><span style="color:#f0a500">⚠ Not assigned</span>`;
+  marker.bindPopup(`<b style="color:${col}">${z.name || z.id}</b><br>Urgency: ${z.urgency}/10 · Risk: ${z.risk}/5<br>Demand: ${(z.demand_kg/1000).toFixed(0)}t · Score: ${z.score}${supplyHtml}${truckHtml}`);
+  marker.addTo(map);
+  layers.markers.push(marker);
 
-  // Blocked roads
-  BLOCKED_ROADS.forEach(b => {
-    ctx.save();
-    ctx.setLineDash([6, 4]);
-    ctx.lineWidth   = 2;
-    ctx.strokeStyle = 'rgba(255,107,107,0.5)';
-    ctx.beginPath();
-    ctx.moveTo(b.x1 * W, b.y1 * H);
-    ctx.lineTo(b.x2 * W, b.y2 * H);
-    ctx.stroke();
-    ctx.restore();
-    const mx = (b.x1 + b.x2) / 2 * W;
-    const my = (b.y1 + b.y2) / 2 * H;
-    ctx.fillStyle = 'var(--c-danger)';
-    ctx.font      = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('✕', mx, my - 6);
-  });
-
-  // Extra blocked road when button pressed
-  if (blocked) {
-    ctx.save();
-    ctx.setLineDash([6, 4]);
-    ctx.lineWidth   = 2;
-    ctx.strokeStyle = 'rgba(255,107,107,0.5)';
-    ctx.beginPath();
-    ctx.moveTo(DEPOTS[0].x * W, DEPOTS[0].y * H);
-    ctx.lineTo(CAMPS[4].x  * W, CAMPS[4].y  * H);
-    ctx.stroke();
-    ctx.restore();
-    const mx = (DEPOTS[0].x + CAMPS[4].x) / 2 * W;
-    const my = (DEPOTS[0].y + CAMPS[4].y) / 2 * H;
-    ctx.fillStyle = '#ff6b6b';
-    ctx.font      = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('✕', mx, my - 6);
-  }
-
-  // Active routes (animated draw)
-  ROUTES.filter(r => r.active).forEach((r, i) => {
-    const t = Math.min(1, (progress - i * 0.12) / 0.45);
-    if (t <= 0) return;
-    const x1 = r.from.x * W, y1 = r.from.y * H;
-    const x2 = lerp(x1, r.to.x * W, t);
-    const y2 = lerp(y1, r.to.y * H, t);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(63,185,80,0.6)';
-    ctx.lineWidth   = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.restore();
-    // Truck dot at end
-    if (t >= 1) {
-      ctx.fillStyle = '#3fb950';
-      ctx.beginPath();
-      ctx.arc(x2, y2, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
-
-  // Depot nodes
-  DEPOTS.forEach(d => {
-    const x = d.x * W, y = d.y * H;
-    ctx.fillStyle   = 'rgba(240,165,0,0.12)';
-    ctx.strokeStyle = '#f0a500';
-    ctx.lineWidth   = 1.5;
-    ctx.fillRect(x - 10, y - 10, 20, 20);
-    ctx.strokeRect(x - 10, y - 10, 20, 20);
-    // Supply bar
-    const pct = d.supply / 100;
-    ctx.fillStyle = 'rgba(240,165,0,0.3)';
-    ctx.fillRect(x - 8, y + 3, 16, 3);
-    ctx.fillStyle = '#f0a500';
-    ctx.fillRect(x - 8, y + 3, 16 * pct, 3);
-    ctx.fillStyle = '#f0a500';
-    ctx.font      = 'bold 9px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(d.label, x, y - 14);
-  });
-
-  // Camp nodes (circles, radius scales with urgency)
-  pulsePhase = (Date.now() / 400) % (Math.PI * 2);
-  CAMPS.forEach(c => {
-    const x  = c.x * W, y = c.y * H;
-    const r  = 5 + c.urgency * 1.5;
-    const col = c.urgency >= 4 ? '#ff6b6b'
-              : c.urgency >= 3 ? '#f0a500'
-              :                  '#58a6ff';
-    // Pulse ring for urgent camps
-    if (c.urgency >= 4 && progress >= 1) {
-      const alpha = 0.25 + 0.15 * Math.sin(pulsePhase);
-      ctx.save();
-      ctx.strokeStyle = col.replace(')', `,${alpha})`).replace('rgb', 'rgba');
-      ctx.strokeStyle = col + '55';
-      ctx.lineWidth   = 1;
-      ctx.beginPath();
-      ctx.arc(x, y, r + 6, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-    ctx.fillStyle   = col + '22';
-    ctx.strokeStyle = col;
-    ctx.lineWidth   = 1.5;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    // Population bar below circle
-    ctx.fillStyle = col + '33';
-    ctx.fillRect(x - 12, y + r + 3, 24, 3);
-    ctx.fillStyle = col;
-    ctx.fillRect(x - 12, y + r + 3, 24 * (c.pop / 2100), 3);
-    // Label
-    ctx.fillStyle = col;
-    ctx.font      = 'bold 9px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(c.label, x, y - r - 5);
-  });
-
-  // Keep the pulse alive after animation finishes
-  if (progress >= 1 && !animating) {
-    animFrameId = requestAnimationFrame(() => draw(1));
+  if (z.urgency >= 8) {
+    const pulse = L.circle([z.lat, z.lng], { radius: r * 120, color: col, fillColor: col, fillOpacity: 0.05, weight: 1, opacity: 0.4 }).addTo(map);
+    layers.markers.push(pulse);
   }
 }
 
-// ── Run animation ─────────────────────────────────────────────────────────────
-function runOptimizer() {
-  if (animating) return;
-  cancelAnimationFrame(animFrameId);
-  animating      = true;
-  routeProgress  = 0;
-  const runBtn   = document.getElementById('run-btn');
-  runBtn.disabled = true;
-  runBtn.textContent = 'RUNNING…';
-
-  addLog('ok', 'Optimizer started');
-
-  const step = () => {
-    routeProgress += 0.016;
-    draw(routeProgress);
-    if (routeProgress < 1.6) {
-      animFrameId = requestAnimationFrame(step);
-    } else {
-      animating = false;
-      draw(1);
-      runBtn.disabled  = false;
-      runBtn.textContent = '▶ RUN OPTIMIZER';
-      addLog('ok', 'Allocation complete — 5 routes dispatched');
-    }
-  };
-  step();
+function makeFogMarker(fz, map, layers) {
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="width:28px;height:28px;border-radius:50%;background:#bc8cff22;border:2px solid #bc8cff;display:flex;align-items:center;justify-content:center;font-size:13px">?</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14],
+  });
+  const m = L.marker([fz.lat, fz.lng], { icon });
+  m.bindPopup(`<b style="color:#bc8cff">Zone ${fz.id} — ${fz.name}</b><br><span style="color:#bc8cff">⚠ Status unknown (fog of war)<br>Click REVEAL to discover</span>`);
+  m.addTo(map);
+  layers.markers.push(m);
 }
 
-// ── Block road ────────────────────────────────────────────────────────────────
-document.getElementById('block-btn').addEventListener('click', () => {
-  blocked = !blocked;
-  const btn = document.getElementById('block-btn');
-  if (blocked) {
-    btn.textContent = '↺ RESTORE ROAD';
-    addLog('warn', 'Route D1→C5 blocked — rerouting');
+function makeRevealedMarker(fz, accessible, map, layers) {
+  const col = accessible ? '#3fb950' : '#ff6b6b55';
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="width:28px;height:28px;border-radius:50%;background:${col}22;border:2px solid ${col};display:flex;align-items:center;justify-content:center;font-size:13px">${accessible ? '✓' : '✕'}</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14],
+  });
+  const m = L.marker([fz.lat, fz.lng], { icon });
+  m.bindPopup(`<b style="color:${accessible?'#3fb950':'#ff6b6b'}">Zone ${fz.id} — ${fz.name}</b><br>${accessible ? '<span style="color:#3fb950">✓ Accessible — re-plan to include</span>' : '<span style="color:#ff6b6b">✕ Inaccessible — zone blocked by conditions</span>'}`);
+  m.addTo(map);
+  layers.markers.push(m);
+}
+
+function drawMap(result, algoKey, map, layers) {
+  clearLayers(layers, map);
+  const data = result[algoKey];
+  const depot = result.depot;
+
+  const depotIcon = L.divIcon({
+    className: '',
+    html: `<div style="background:#f0a50033;border:2px solid #f0a500;border-radius:4px;padding:3px 6px;font-family:monospace;font-size:9px;color:#f0a500;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.5)">${depot.label}</div>`,
+    iconAnchor: [40, 12],
+  });
+  const dm = L.marker([depot.lat, depot.lng], { icon: depotIcon });
+  dm.bindPopup(`<b style="color:#f0a500">Depot: ${depot.label}</b><br>All trucks originate here`);
+  dm.addTo(map);
+  layers.markers.push(dm);
+
+  const zoneMap = {};
+  data.zones.forEach(z => { zoneMap[z.id] = z; });
+
+  data.trucks.forEach((truck, ti) => {
+    if (!truck.route_coords || truck.route_coords.length === 0) return;
+    const col = TRUCK_COLORS[ti % TRUCK_COLORS.length];
+    const pts = [[depot.lat, depot.lng], ...truck.route_coords.map(c => [c.lat, c.lng]), [depot.lat, depot.lng]];
+    const line = L.polyline(pts, { color: col, weight: 2.5, opacity: 0.75, dashArray: null });
+    line.addTo(map);
+    layers.routes.push(line);
+    line.bindPopup(`<b style="color:${col}">Truck ${truck.truck_num}</b><br>Route: ${truck.assigned_ids.join(' → ')}<br>${truck.km} km · ${truck.hours}h`);
+  });
+
+  data.zones.forEach(z => {
+    const truckObj = data.trucks.find(t => t.assigned_ids.includes(z.id));
+    const truckNum = truckObj ? truckObj.truck_num : null;
+    const truckColor = truckObj ? TRUCK_COLORS[(truckObj.truck_num - 1) % TRUCK_COLORS.length] : null;
+    makeZoneMarker(z, truckNum, truckColor, map, layers, algoKey);
+  });
+
+  result.fog_zones.forEach(fz => {
+    if (fz.status === 'unknown') makeFogMarker(fz, map, layers);
+    else makeRevealedMarker(fz, fz.status === 'accessible', map, layers);
+  });
+
+  data.zones.filter(z => state.blockedZones.has(z.id)).forEach(z => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:24px;height:24px;border-radius:50%;background:#ff6b6b18;border:2px solid #ff6b6b55;display:flex;align-items:center;justify-content:center;font-size:12px;color:#ff6b6b55">✕</div>`,
+      iconSize: [24, 24], iconAnchor: [12, 12],
+    });
+    const m = L.marker([z.lat, z.lng], { icon }).addTo(map);
+    layers.markers.push(m);
+  });
+
+  const allLats = [...data.zones.map(z => z.lat), depot.lat, ...result.fog_zones.map(f => f.lat)];
+  const allLngs = [...data.zones.map(z => z.lng), depot.lng, ...result.fog_zones.map(f => f.lng)];
+  const bounds = L.latLngBounds(allLats.map((la, i) => [la, allLngs[i]]));
+  map.fitBounds(bounds.pad(0.15));
+}
+
+function animateTickers(gData) {
+  if (state.tickerAnim) clearInterval(state.tickerAnim);
+  const targetKm = gData.trucks.reduce((s, t) => s + t.km, 0);
+  const targetHrs = gData.metrics.total_hours;
+  const targetZones = gData.metrics.zones_served;
+  let step = 0;
+  const steps = 60;
+  state.tickerAnim = setInterval(() => {
+    step++;
+    const p = Math.min(step / steps, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    document.getElementById('tk-km').textContent = Math.round(targetKm * ease) + ' km';
+    document.getElementById('tk-hrs').textContent = (targetHrs * ease).toFixed(1) + 'h';
+    document.getElementById('tk-zones').textContent = Math.round(targetZones * ease);
+    if (step >= steps) clearInterval(state.tickerAnim);
+  }, 20);
+}
+
+function updateSupplyBars(trucks) {
+  let food = 0, med = 0, shel = 0;
+  trucks.forEach(t => {
+    if (t.supply_breakdown) {
+      food += t.supply_breakdown.food || 0;
+      med  += t.supply_breakdown.medicine || 0;
+      shel += t.supply_breakdown.shelter || 0;
+    }
+  });
+  const total = food + med + shel || 1;
+  document.getElementById('sf-food').style.width = (food/total*100) + '%';
+  document.getElementById('sf-med').style.width  = (med/total*100) + '%';
+  document.getElementById('sf-shel').style.width = (shel/total*100) + '%';
+  document.getElementById('sv-food').textContent = (food/1000).toFixed(1) + 't';
+  document.getElementById('sv-med').textContent  = (med/1000).toFixed(1) + 't';
+  document.getElementById('sv-shel').textContent = (shel/1000).toFixed(1) + 't';
+}
+
+function renderTruckCards(trucks, algoKey) {
+  const container = document.getElementById('truck-cards');
+  container.innerHTML = '';
+  const label = algoKey === 'greedy' ? 'Greedy' : 'Priority Queue';
+  const header = document.createElement('div');
+  header.className = 'plabel';
+  header.style.cssText = 'margin-bottom:4px;color:' + (algoKey === 'greedy' ? 'var(--c-warn)' : 'var(--c-info)');
+  header.textContent = label + ' assignments';
+  container.appendChild(header);
+  trucks.forEach((t, ti) => {
+    const col = TRUCK_COLORS[ti % TRUCK_COLORS.length];
+    const card = document.createElement('div');
+    card.className = 'truck-card';
+    card.style.borderColor = col + '55';
+    const route = t.route.length > 0 ? 'Depot → ' + t.route.join(' → ') + ' → Depot' : 'No zones assigned';
+    let supHtml = '';
+    if (t.supply_breakdown) {
+      const sb = t.supply_breakdown;
+      if (sb.food)     supHtml += `<span class="ts-chip ts-food">🍞 ${(sb.food/1000).toFixed(1)}t</span>`;
+      if (sb.medicine) supHtml += `<span class="ts-chip ts-medicine">💊 ${(sb.medicine/1000).toFixed(1)}t</span>`;
+      if (sb.shelter)  supHtml += `<span class="ts-chip ts-shelter">🏠 ${(sb.shelter/1000).toFixed(1)}t</span>`;
+    }
+    card.innerHTML = `<div class="truck-header"><span style="color:${col}">TRUCK ${t.truck_num}</span><span style="color:var(--c-muted)">${(t.load_kg/1000).toFixed(1)}t</span></div><div class="truck-route">${route}</div>${supHtml ? '<div class="truck-supply">'+supHtml+'</div>' : ''}<div class="truck-stat">${t.km} km · ${t.hours}h</div>`;
+    container.appendChild(card);
+  });
+}
+
+function applyResult(data) {
+  const g = data.greedy, p = data.priority_queue;
+
+  const fmtCov = (m, cls) => `<span class="metric-val ${cls}">${m.coverage_pct}%</span>`;
+  document.getElementById('g-coverage').textContent = g.metrics.coverage_pct + '%';
+  document.getElementById('g-coverage-sub').textContent = g.metrics.zones_served + '/' + g.metrics.zones_total + ' zones';
+  document.getElementById('p-coverage').textContent = p.metrics.coverage_pct + '%';
+  document.getElementById('p-coverage-sub').textContent = p.metrics.zones_served + '/' + p.metrics.zones_total + ' zones';
+  document.getElementById('g-kg').textContent = (g.metrics.total_kg/1000).toFixed(1) + 't';
+  document.getElementById('g-kg-sub').textContent = 'of ' + (data.total_demand_kg/1000).toFixed(1) + 't';
+  document.getElementById('p-kg').textContent = (p.metrics.total_kg/1000).toFixed(1) + 't';
+  document.getElementById('p-kg-sub').textContent = 'of ' + (data.total_demand_kg/1000).toFixed(1) + 't';
+  document.getElementById('g-urg').textContent = g.metrics.total_urgency;
+  document.getElementById('p-urg').textContent = p.metrics.total_urgency;
+  document.getElementById('g-hrs').textContent = g.metrics.total_hours + 'h';
+  document.getElementById('p-hrs').textContent = p.metrics.total_hours + 'h';
+
+  document.getElementById('badge-coverage-g').innerHTML = 'GREEDY <b>' + g.metrics.coverage_pct + '%</b>';
+  document.getElementById('badge-coverage-p').innerHTML = 'PQ <b>' + p.metrics.coverage_pct + '%</b>';
+  document.getElementById('pill-zones').textContent = '● ' + g.metrics.zones_served + '/' + g.metrics.zones_total + ' ZONES';
+  document.getElementById('pill-trucks').textContent = '● ' + g.metrics.trucks_used + ' TRUCKS';
+
+  const fogCount = data.fog_zones.filter(f => f.status === 'unknown').length;
+  const fogPill = document.getElementById('pill-fog');
+  if (fogCount > 0) { fogPill.style.display = ''; fogPill.textContent = '● ' + fogCount + ' FOG'; }
+  else fogPill.style.display = 'none';
+
+  const blockedPill = document.getElementById('pill-blocked');
+  if (state.blockedZones.size > 0) { blockedPill.style.display = ''; blockedPill.textContent = '● ' + state.blockedZones.size + ' BLOCKED'; }
+  else blockedPill.style.display = 'none';
+
+  const wb = document.getElementById('winner-badge');
+  const gScore = g.metrics.total_urgency + g.metrics.coverage_pct;
+  const pScore = p.metrics.total_urgency + p.metrics.coverage_pct;
+  if (Math.abs(gScore - pScore) < 2) {
+    wb.className = 'winner-badge tie'; wb.textContent = '≈ Algorithms tied — similar outcome on this scenario';
+  } else if (gScore > pScore) {
+    wb.className = 'winner-badge greedy'; wb.textContent = '▲ Greedy wins — higher coverage + urgency this run';
   } else {
-    btn.textContent = '✕ BLOCK ROAD';
-    addLog('ok', 'Route D1→C5 restored');
+    wb.className = 'winner-badge pq'; wb.textContent = '▲ Priority Queue wins — better urgency served this run';
   }
-  draw(routeProgress >= 1 ? 1 : routeProgress);
-});
 
-// ── Run button ────────────────────────────────────────────────────────────────
-document.getElementById('run-btn').addEventListener('click', runOptimizer);
+  updateSupplyBars(g.trucks);
+  renderTruckCards(state.activeTab === 'pq' ? p.trucks : g.trucks, state.activeTab === 'pq' ? 'priority_queue' : 'greedy');
+  animateTickers(g);
 
-// ── Algo buttons ──────────────────────────────────────────────────────────────
-document.querySelectorAll('.algo-btn').forEach(btn => {
-  btn.addEventListener('click', function () {
-    document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    const algo = this.dataset.algo;
-    document.getElementById('algo-badge').innerHTML = 'ALGO <b>' + algo + '</b>';
-    addLog('ok', 'Algorithm switched to ' + algo);
-  });
-});
+  document.getElementById('log-list').innerHTML = '';
+  addLog('ok', 'Run complete — greedy: ' + g.metrics.coverage_pct + '% · pq: ' + p.metrics.coverage_pct + '%');
+  g.trucks.forEach(t => { if (t.assigned_ids.length > 0) addLog('ok', '[G] Truck ' + t.truck_num + ' → [' + t.assigned_ids.join(',') + '] ' + t.km + 'km'); });
+  if (fogCount > 0) addLog('fog', fogCount + ' zone(s) hidden by fog of war — click REVEAL to discover');
+  if (state.blockedZones.size > 0) addLog('warn', 'Blocked zones excluded: ' + [...state.blockedZones].join(', '));
 
-// ── Scenario buttons ──────────────────────────────────────────────────────────
-document.querySelectorAll('.scenario-btn').forEach(btn => {
-  btn.addEventListener('click', function () {
-    document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('sel'));
-    this.classList.add('sel');
-    addLog('ok', 'Scenario loaded: ' + this.textContent.trim());
-    routeProgress = 0;
-    draw(0);
-  });
-});
+  state.servedIds = new Set(g.zones.filter(z => z.assigned).map(z => z.id));
+  state.currentZones = g.zones;
+  buildZoneList(g.zones, data.fog_zones);
 
-// ── Tooltip on canvas hover ───────────────────────────────────────────────────
-const tooltip = document.getElementById('tooltip');
+  const hasFog = fogCount > 0;
+  document.getElementById('btn-reveal').classList.toggle('show', hasFog);
+  document.getElementById('btn-replan').classList.toggle('show', state.blockedZones.size > 0 || Object.keys(state.revealedFog).length > 0);
 
-canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-
-  let found = false;
-
-  DEPOTS.forEach(d => {
-    const dx = mx - d.x * W, dy = my - d.y * H;
-    if (Math.sqrt(dx*dx + dy*dy) < 14) {
-      tooltip.innerHTML = `<b style="color:var(--c-warn)">${d.label}</b><br>Supply: ${d.supply}%<br>Type: Aid depot`;
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 12) + 'px';
-      tooltip.style.top  = (e.clientY - 10) + 'px';
-      found = true;
-    }
-  });
-
-  CAMPS.forEach(c => {
-    const r  = 5 + c.urgency * 1.5;
-    const dx = mx - c.x * W, dy = my - c.y * H;
-    const col = c.urgency >= 4 ? 'var(--c-danger)'
-              : c.urgency >= 3 ? 'var(--c-warn)'
-              :                  'var(--c-info)';
-    if (Math.sqrt(dx*dx + dy*dy) < r + 6) {
-      tooltip.innerHTML = `<b style="color:${col}">${c.label}</b><br>Population: ${c.pop.toLocaleString()}<br>Urgency: ${'★'.repeat(c.urgency)}`;
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 12) + 'px';
-      tooltip.style.top  = (e.clientY - 10) + 'px';
-      found = true;
-    }
-  });
-
-  if (!found) tooltip.style.display = 'none';
-});
-canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
-
-// ── Log helper ────────────────────────────────────────────────────────────────
-function addLog(type, msg) {
-  const list  = document.getElementById('log-list');
-  const now   = new Date();
-  const time  = now.getHours().toString().padStart(2,'0') + ':'
-              + now.getMinutes().toString().padStart(2,'0');
-  const cls   = type === 'ok' ? 'log-ok' : type === 'warn' ? 'log-warn' : 'log-err';
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  entry.innerHTML = `<span class="log-time">${time}</span><span class="${cls}">${msg}</span>`;
-  list.insertBefore(entry, list.firstChild);
+  drawMap(data, 'greedy', mapG, layersG);
+  if (state.activeTab === 'pq' || state.activeTab === 'both') drawMap(data, 'priority_queue', mapP, layersP);
 }
 
-// ── Resize observer ───────────────────────────────────────────────────────────
-const ro = new ResizeObserver(resizeCanvas);
-ro.observe(canvas.parentElement);
+function buildZoneList(zones, fogZones) {
+  const container = document.getElementById('zone-list');
+  container.innerHTML = '';
+  const fogIds = new Set((fogZones || []).filter(f => f.status === 'unknown').map(f => f.id));
+  const revealedFogBlocked = new Set(Object.entries(state.revealedFog).filter(([, v]) => !v).map(([k]) => k));
 
-// Initial draw
-resizeCanvas();
-draw(0);
+  zones.forEach(z => {
+    const chip = document.createElement('div');
+    const isBlocked = state.blockedZones.has(z.id);
+    chip.className = 'zone-chip' + (isBlocked ? ' blocked' : '');
+    chip.innerHTML = `<span class="zone-chip-name">${z.name || z.id}</span><span class="zone-chip-meta" style="color:${urgencyColor(z.urgency)}">urg ${z.urgency}</span>`;
+    chip.title = 'Click to ' + (isBlocked ? 'unblock' : 'block') + ' zone ' + z.id;
+    chip.addEventListener('click', () => toggleBlock(z.id));
+    container.appendChild(chip);
+  });
+
+  fogZones.forEach(fz => {
+    const chip = document.createElement('div');
+    if (fz.status === 'unknown') {
+      chip.className = 'zone-chip fog';
+      chip.innerHTML = `<span class="zone-chip-name">? ${fz.name}</span><span class="zone-chip-meta">unknown</span>`;
+    } else {
+      const accessible = fz.status === 'accessible';
+      chip.className = 'zone-chip' + (accessible ? '' : ' fog-blocked');
+      chip.innerHTML = `<span class="zone-chip-name">${accessible ? '✓' : '✕'} ${fz.name}</span><span class="zone-chip-meta">${accessible ? 'accessible' : 'blocked'}</span>`;
+    }
+    container.appendChild(chip);
+  });
+}
+
+function toggleBlock(zoneId) {
+  if (state.blockedZones.has(zoneId)) { state.blockedZones.delete(zoneId); addLog('ok', 'Zone ' + zoneId + ' unblocked'); }
+  else { state.blockedZones.add(zoneId); addLog('warn', 'Zone ' + zoneId + ' blocked — press RE-PLAN'); }
+  if (state.lastResult) buildZoneList(state.lastResult.greedy.zones, state.lastResult.fog_zones);
+  document.getElementById('btn-replan').classList.toggle('show', state.blockedZones.size > 0 || Object.keys(state.revealedFog).length > 0);
+  const bp = document.getElementById('pill-blocked');
+  if (state.blockedZones.size > 0) { bp.style.display = ''; bp.textContent = '● ' + state.blockedZones.size + ' BLOCKED'; }
+  else bp.style.display = 'none';
+}
+
+async function revealFog() {
+  if (!state.lastResult) return;
+  const fogIds = state.lastResult.fog_zones.filter(f => f.status === 'unknown').map(f => f.id);
+  if (fogIds.length === 0) return;
+  const res = await fetch('/api/reveal-fog', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ scenario: state.scenario, fog_ids: fogIds, seed: state.fogSeed }) });
+  const data = await res.json();
+  state.revealedFog = Object.assign(state.revealedFog, data.revealed);
+  fogIds.forEach(id => {
+    const acc = data.revealed[id];
+    addLog('fog', 'Zone ' + id + ' revealed: ' + (acc ? '✓ accessible — re-plan to include' : '✕ inaccessible'));
+    if (!acc) state.blockedZones.add(id);
+  });
+  document.getElementById('btn-reveal').classList.remove('show');
+  document.getElementById('btn-replan').classList.add('show');
+  await runOptimizer();
+}
+
+async function advanceTick() {
+  if (!state.lastResult) { addLog('warn', 'Run optimizer first before advancing time'); return; }
+  const hours = parseInt(document.getElementById('r-tick').value);
+  state.elapsedHours += hours;
+  document.getElementById('elapsed-display').textContent = state.elapsedHours + 'h';
+  document.getElementById('badge-time').innerHTML = 'TIME <b>+' + state.elapsedHours + 'h</b>';
+  const zones = state.currentZones.map(z => ({ id: z.id, lat: z.lat, lng: z.lng, demand_kg: z.demand_kg, urgency: z.urgency, risk: z.risk, supply_types: z.supply_types || {}, name: z.name }));
+  const res = await fetch('/api/tick', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ scenario: state.scenario, zones, served_ids: [...state.servedIds], hours_elapsed: hours }) });
+  const data = await res.json();
+  const changed = data.zones.filter((z, i) => z.urgency !== zones[i].urgency);
+  if (changed.length > 0) addLog('warn', '+' + hours + 'h: urgency increased for zones ' + changed.map(z => z.id + '→' + z.urgency).join(', '));
+  else addLog('ok', '+' + hours + 'h: no urgency changes (all served)');
+  data.zones.forEach(z => {
+    const sc = SCENARIOS_CACHE[state.scenario];
+    if (sc) { const orig = sc.zones.find(oz => oz.id === z.id); if (orig) orig.urgency = z.urgency; }
+  });
+  state.currentZones = data.zones;
+  await runOptimizer();
+}
+
+function resetTime() {
+  state.elapsedHours = 0;
+  document.getElementById('elapsed-display').textContent = '0h';
+  document.getElementById('badge-time').innerHTML = 'TIME <b>+0h</b>';
+  addLog('ok', 'Time reset to 0h — urgency values restored from scenario defaults');
+  if (state.lastResult) runOptimizer();
+}
+
+let SCENARIOS_CACHE = {};
+
+async function loadScenarios() {
+  const res = await fetch('/api/scenarios');
+  const list = await res.json();
+  const container = document.getElementById('scenario-list');
+  list.forEach((sc, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'scenario-btn' + (i === 0 ? ' sel' : '');
+    btn.textContent = sc.label;
+    btn.dataset.scId = sc.id;
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('sel'));
+      this.classList.add('sel');
+      state.scenario = this.dataset.scId;
+      state.blockedZones.clear();
+      state.revealedFog = {};
+      state.lastResult = null;
+      state.elapsedHours = 0;
+      state.fogSeed = Math.floor(Math.random() * 9999);
+      document.getElementById('elapsed-display').textContent = '0h';
+      document.getElementById('badge-time').innerHTML = 'TIME <b>+0h</b>';
+      document.getElementById('zone-list').innerHTML = '';
+      document.getElementById('truck-cards').innerHTML = '';
+      document.getElementById('badge-scenario').innerHTML = 'SCENARIO <b>' + sc.label.toUpperCase() + '</b>';
+      document.getElementById('scenario-desc').textContent = sc.description || '';
+      document.getElementById('btn-reveal').classList.remove('show');
+      document.getElementById('btn-replan').classList.remove('show');
+      document.getElementById('pill-blocked').style.display = 'none';
+      document.getElementById('pill-fog').style.display = 'none';
+      addLog('ok', 'Scenario loaded: ' + sc.label);
+    });
+    container.appendChild(btn);
+  });
+  if (list.length > 0) {
+    state.scenario = list[0].id;
+    document.getElementById('scenario-desc').textContent = list[0].description || '';
+    document.getElementById('badge-scenario').innerHTML = 'SCENARIO <b>' + list[0].label.toUpperCase() + '</b>';
+  }
+}
+
+function switchTab(tab) {
+  state.activeTab = tab;
+  document.getElementById('tab-greedy').className = 'compare-tab' + (tab === 'greedy' ? ' active' : '');
+  document.getElementById('tab-pq').className     = 'compare-tab' + (tab === 'pq'     ? ' pq-active' : '');
+  document.getElementById('tab-both').className   = 'compare-tab' + (tab === 'both'   ? ' active' : '');
+
+  const mg = document.getElementById('map-greedy');
+  const mp = document.getElementById('map-pq');
+  if (tab === 'greedy') { mg.style.display = ''; mp.style.display = 'none'; }
+  else if (tab === 'pq') { mg.style.display = 'none'; mp.style.display = ''; }
+  else { mg.style.display = ''; mp.style.display = ''; }
+
+  setTimeout(() => { mapG.invalidateSize(); mapP.invalidateSize(); }, 50);
+  if (state.lastResult) {
+    if (tab === 'pq' || tab === 'both') drawMap(state.lastResult, 'priority_queue', mapP, layersP);
+    renderTruckCards(tab === 'pq' ? state.lastResult.priority_queue.trucks : state.lastResult.greedy.trucks, tab === 'pq' ? 'priority_queue' : 'greedy');
+    updateSupplyBars(tab === 'pq' ? state.lastResult.priority_queue.trucks : state.lastResult.greedy.trucks);
+  }
+}
+
+async function runOptimizer() {
+  const runBtn = document.getElementById('run-btn');
+  runBtn.disabled = true;
+  document.getElementById('spinner').classList.add('on');
+  const payload = {
+    scenario: state.scenario,
+    blocked_zones: [...state.blockedZones],
+    num_trucks: parseInt(document.getElementById('r-trucks').value),
+    truck_capacity_kg: parseInt(document.getElementById('r-cap').value),
+    revealed_fog: state.revealedFog,
+  };
+  try {
+    const res = await fetch('/api/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    state.lastResult = data;
+    applyResult(data);
+  } catch (err) {
+    addLog('err', 'API error: ' + err.message);
+  } finally {
+    runBtn.disabled = false;
+    document.getElementById('spinner').classList.remove('on');
+  }
+}
+
+function addLog(type, msg) {
+  const list = document.getElementById('log-list');
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  const cls = { ok:'log-ok', warn:'log-warn', err:'log-err', fog:'log-fog' }[type] || 'log-ok';
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  el.innerHTML = `<span class="log-time">${t}</span><span class="${cls}">${msg}</span>`;
+  list.insertBefore(el, list.firstChild);
+}
+
+initMaps();
+loadScenarios();
 </script>
 </body>
 </html>
