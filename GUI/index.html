@@ -67,8 +67,9 @@
     .compare-tab.active { color:var(--c-warn); border-bottom:2px solid var(--c-warn); }
     .compare-tab.pq-active { color:var(--c-info); border-bottom:2px solid var(--c-info); }
     .maps-container { flex:1; display:flex; position:relative; min-height:0; }
-    #map-greedy, #map-pq { flex:1; min-height:0; }
-    #map-pq { display:none; border-left:1px solid var(--c-border); }
+    #map-greedy, #map-pq { flex:1; min-height:0; position:absolute; top:0; bottom:0; left:0; right:0; }
+    #map-greedy { z-index:1; }
+    #map-pq { z-index:0; visibility:hidden; pointer-events:none; }
     .map-badge-overlay { position:absolute; top:10px; left:10px; z-index:1000; display:flex; flex-direction:column; gap:4px; pointer-events:none; }
     .map-badge-overlay-right { position:absolute; top:10px; right:10px; z-index:1000; display:flex; flex-direction:column; gap:4px; pointer-events:none; }
     .mbadge { background:rgba(22,27,34,.9); border:1px solid var(--c-border); border-radius:4px; padding:3px 8px; font-family:var(--font-mono); font-size:10px; color:var(--c-muted); backdrop-filter:blur(4px); }
@@ -223,7 +224,7 @@
       <div id="spinner"><span class="spin-label">⏳ RUNNING OPTIMIZER…</span></div>
       <div class="map-actions">
         <button class="btn-reveal" id="btn-reveal" onclick="revealFog()">👁 REVEAL FOG ZONES</button>
-        <button class="btn-replan" id="btn-replan" onclick="runOptimizer()">↺ RE-PLAN</button>
+        <button class="btn-replan" id="btn-replan" onclick="replan()">↺ RE-PLAN</button>
         <button class="btn-run" id="run-btn" onclick="runOptimizer()">▶ RUN OPTIMIZER</button>
       </div>
     </div>
@@ -353,13 +354,14 @@ let mapG = null, mapP = null;
 const layersG = { routes: [], markers: [] };
 const layersP = { routes: [], markers: [] };
 
+const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE_OPTS = { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 14, minZoom: 7 };
+
 function initMaps() {
-  const tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-  const opts = { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 14, minZoom: 7 };
   mapG = L.map('map-greedy', { zoomControl: true,  scrollWheelZoom: true }).setView([36.2, 37.15], 11);
   mapP = L.map('map-pq',     { zoomControl: false, scrollWheelZoom: true }).setView([36.2, 37.15], 11);
-  L.tileLayer(tileUrl, opts).addTo(mapG);
-  L.tileLayer(tileUrl, opts).addTo(mapP);
+  L.tileLayer(TILE_URL, TILE_OPTS).addTo(mapG);
+  L.tileLayer(TILE_URL, TILE_OPTS).addTo(mapP);
   mapG.on('moveend zoomend', () => { mapP.setView(mapG.getCenter(), mapG.getZoom(), { animate: false }); });
 }
 
@@ -603,7 +605,7 @@ function applyResult(data) {
   document.getElementById('btn-replan').classList.toggle('show', state.blockedZones.size > 0 || Object.keys(state.revealedFog).length > 0);
 
   drawMap(data, 'greedy', mapG, layersG);
-  if (state.activeTab === 'pq' || state.activeTab === 'both') drawMap(data, 'priority_queue', mapP, layersP);
+  drawMap(data, 'priority_queue', mapP, layersP);
 }
 
 function buildZoneList(zones, fogZones) {
@@ -663,31 +665,58 @@ async function revealFog() {
   await runOptimizer();
 }
 
+function replan() {
+  addLog('ok', 'Re-planning with updated zone state...');
+  runOptimizer();
+}
+
 async function advanceTick() {
   if (!state.lastResult) { addLog('warn', 'Run optimizer first before advancing time'); return; }
   const hours = parseInt(document.getElementById('r-tick').value);
   state.elapsedHours += hours;
   document.getElementById('elapsed-display').textContent = state.elapsedHours + 'h';
   document.getElementById('badge-time').innerHTML = 'TIME <b>+' + state.elapsedHours + 'h</b>';
-  const zones = state.currentZones.map(z => ({ id: z.id, lat: z.lat, lng: z.lng, demand_kg: z.demand_kg, urgency: z.urgency, risk: z.risk, supply_types: z.supply_types || {}, name: z.name }));
-  const res = await fetch('/api/tick', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ scenario: state.scenario, zones, served_ids: [...state.servedIds], hours_elapsed: hours }) });
-  const data = await res.json();
-  const changed = data.zones.filter((z, i) => z.urgency !== zones[i].urgency);
-  if (changed.length > 0) addLog('warn', '+' + hours + 'h: urgency increased for zones ' + changed.map(z => z.id + '→' + z.urgency).join(', '));
-  else addLog('ok', '+' + hours + 'h: no urgency changes (all served)');
-  data.zones.forEach(z => {
-    const sc = SCENARIOS_CACHE[state.scenario];
-    if (sc) { const orig = sc.zones.find(oz => oz.id === z.id); if (orig) orig.urgency = z.urgency; }
-  });
-  state.currentZones = data.zones;
-  await runOptimizer();
+  const scDef = SCENARIOS_CACHE[state.scenario];
+  if (!scDef) { addLog('err', 'Scenario data not cached — re-run optimizer first'); return; }
+  const zones = scDef.zones.map(z => ({
+    id: z.id, lat: z.lat, lng: z.lng,
+    demand_kg: z.demand_kg, urgency: z.urgency,
+    risk: z.risk, supply_types: z.supply_types || {}, name: z.name || z.id,
+  }));
+  try {
+    const res = await fetch('/api/tick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario: state.scenario, zones, served_ids: [...state.servedIds], hours_elapsed: hours }),
+    });
+    const data = await res.json();
+    const changed = data.zones.filter((z, i) => z.urgency !== zones[i].urgency);
+    if (changed.length > 0) {
+      addLog('warn', '+' + hours + 'h: urgency ↑ for ' + changed.map(z => z.id + '→' + z.urgency).join(', '));
+    } else {
+      addLog('ok', '+' + hours + 'h: no urgency changes (all zones served)');
+    }
+    data.zones.forEach(updated => {
+      const orig = scDef.zones.find(z => z.id === updated.id);
+      if (orig) orig.urgency = updated.urgency;
+    });
+    await runOptimizer();
+  } catch (err) {
+    addLog('err', 'Tick error: ' + err.message);
+  }
 }
 
 function resetTime() {
   state.elapsedHours = 0;
   document.getElementById('elapsed-display').textContent = '0h';
   document.getElementById('badge-time').innerHTML = 'TIME <b>+0h</b>';
-  addLog('ok', 'Time reset to 0h — urgency values restored from scenario defaults');
+  const scDef = SCENARIOS_CACHE[state.scenario];
+  if (scDef && scDef._originalZones) {
+    scDef.zones = scDef._originalZones.map(z => Object.assign({}, z));
+    addLog('ok', 'Time reset — urgency restored to scenario defaults');
+  } else {
+    addLog('ok', 'Time reset to 0h');
+  }
   if (state.lastResult) runOptimizer();
 }
 
@@ -696,6 +725,19 @@ let SCENARIOS_CACHE = {};
 async function loadScenarios() {
   const res = await fetch('/api/scenarios');
   const list = await res.json();
+  const scRes = await Promise.all(list.map(sc => fetch('/api/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenario: sc.id, blocked_zones: [], revealed_fog: {} }),
+  }).then(r => r.json())));
+  list.forEach((sc, i) => {
+    const data = scRes[i];
+    const zones = data.greedy.zones.map(z => ({
+      id: z.id, name: z.name, lat: z.lat, lng: z.lng,
+      demand_kg: z.demand_kg, urgency: z.urgency, risk: z.risk, supply_types: z.supply_types || {},
+    }));
+    SCENARIOS_CACHE[sc.id] = { zones, _originalZones: zones.map(z => Object.assign({}, z)) };
+  });
   const container = document.getElementById('scenario-list');
   list.forEach((sc, i) => {
     const btn = document.createElement('button');
@@ -711,6 +753,10 @@ async function loadScenarios() {
       state.lastResult = null;
       state.elapsedHours = 0;
       state.fogSeed = Math.floor(Math.random() * 9999);
+      const scDef = SCENARIOS_CACHE[this.dataset.scId];
+      if (scDef && scDef._originalZones) {
+        scDef.zones = scDef._originalZones.map(z => Object.assign({}, z));
+      }
       document.getElementById('elapsed-display').textContent = '0h';
       document.getElementById('badge-time').innerHTML = 'TIME <b>+0h</b>';
       document.getElementById('zone-list').innerHTML = '';
@@ -740,13 +786,34 @@ function switchTab(tab) {
 
   const mg = document.getElementById('map-greedy');
   const mp = document.getElementById('map-pq');
-  if (tab === 'greedy') { mg.style.display = ''; mp.style.display = 'none'; }
-  else if (tab === 'pq') { mg.style.display = 'none'; mp.style.display = ''; }
-  else { mg.style.display = ''; mp.style.display = ''; }
 
-  setTimeout(() => { mapG.invalidateSize(); mapP.invalidateSize(); }, 50);
+  if (tab === 'greedy') {
+    mg.style.visibility = 'visible'; mg.style.pointerEvents = 'auto'; mg.style.zIndex = '2';
+    mp.style.visibility = 'hidden';  mp.style.pointerEvents = 'none'; mp.style.zIndex = '1';
+  } else if (tab === 'pq') {
+    mp.style.visibility = 'visible'; mp.style.pointerEvents = 'auto'; mp.style.zIndex = '2';
+    mg.style.visibility = 'hidden';  mg.style.pointerEvents = 'none'; mg.style.zIndex = '1';
+  } else {
+    mg.style.position = 'relative'; mg.style.visibility = 'visible'; mg.style.pointerEvents = 'auto'; mg.style.zIndex = '1';
+    mp.style.position = 'relative'; mp.style.visibility = 'visible'; mp.style.pointerEvents = 'auto'; mp.style.zIndex = '1';
+    mg.style.flex = '1'; mp.style.flex = '1';
+  }
+
+  if (tab !== 'both') {
+    mg.style.position = 'absolute'; mg.style.flex = '';
+    mp.style.position = 'absolute'; mp.style.flex = '';
+  }
+
+  setTimeout(() => {
+    mapG.invalidateSize();
+    mapP.invalidateSize();
+    if (state.lastResult) {
+      drawMap(state.lastResult, 'greedy', mapG, layersG);
+      drawMap(state.lastResult, 'priority_queue', mapP, layersP);
+    }
+  }, 50);
+
   if (state.lastResult) {
-    if (tab === 'pq' || tab === 'both') drawMap(state.lastResult, 'priority_queue', mapP, layersP);
     renderTruckCards(tab === 'pq' ? state.lastResult.priority_queue.trucks : state.lastResult.greedy.trucks, tab === 'pq' ? 'priority_queue' : 'greedy');
     updateSupplyBars(tab === 'pq' ? state.lastResult.priority_queue.trucks : state.lastResult.greedy.trucks);
   }
@@ -756,12 +823,14 @@ async function runOptimizer() {
   const runBtn = document.getElementById('run-btn');
   runBtn.disabled = true;
   document.getElementById('spinner').classList.add('on');
+  const scDef = SCENARIOS_CACHE[state.scenario];
   const payload = {
     scenario: state.scenario,
     blocked_zones: [...state.blockedZones],
     num_trucks: parseInt(document.getElementById('r-trucks').value),
     truck_capacity_kg: parseInt(document.getElementById('r-cap').value),
     revealed_fog: state.revealedFog,
+    zone_overrides: (scDef && state.elapsedHours > 0) ? scDef.zones : null,
   };
   try {
     const res = await fetch('/api/run', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
