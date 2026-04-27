@@ -87,13 +87,15 @@ The map uses real geographic coordinates. You can zoom, pan, and click any marke
 ## File breakdown
 
 ```
+├── api_server.py           # Flask server - connects the algorithms to the GUI via REST endpoints
+├── index.html              # The full frontend - Leaflet map, comparison panel, all interactivity
 ├── greedy_select.py        # Scores zones by urgency / (distance × risk), assigns to trucks greedily
 ├── delivery_optimizer.py   # Nearest-neighbor routing per truck, returns km and estimated hours
 ├── algorithms.py           # Priority queue (min-heap) algorithm, urgency decay, fog-of-war reveal
 ├── main.py                 # Standalone terminal demo (runs greedy + re-plan scenario, prints output)
-├── GUI/
-│   ├── index.html          # The full frontend - Leaflet map, comparison panel, all interactivity
-│   └── api_server.py           # Flask server - connects the algorithms to the GUI via REST endpoints
+├── report_and_demo/        # Contains project report PDF and demonstration video link
+│   ├── CMPSC 463 Final Project Report - Emergency Aid Optimizer.pdf
+│   └── demo_video_link.txt
 └── README.md
 ```
 
