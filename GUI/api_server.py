@@ -132,16 +132,17 @@ def build_zone_table(zones, assignments, depot):
         })
     return result
 
-def run_scenario(sc, blocked_ids, n_trucks, capacity, revealed_fog):
+def run_scenario(sc, blocked_ids, n_trucks, capacity, revealed_fog, zone_overrides=None):
     depot_dict = sc["depot"]
     depot = (depot_dict["lat"], depot_dict["lng"])
     fog_ids = set(sc.get("fog_zones", []))
     active_fog = fog_ids - set(revealed_fog.keys())
+    base_zones = zone_overrides if zone_overrides else sc["zones"]
     visible_zones = [
-        z.copy() for z in sc["zones"]
+        z.copy() for z in base_zones
         if z["id"] not in blocked_ids and z["id"] not in active_fog
     ]
-    total_demand = sum(z["demand_kg"] for z in sc["zones"])
+    total_demand = sum(z["demand_kg"] for z in base_zones)
 
     g_zones = [z.copy() for z in visible_zones]
     g_selected, g_assignments, g_kg, g_urgency = greedy_selection(g_zones, capacity, n_trucks, depot)
@@ -214,6 +215,7 @@ def run():
     n_trucks      = body.get("num_trucks", None)
     capacity      = body.get("truck_capacity_kg", None)
     revealed_fog  = body.get("revealed_fog", {})
+    zone_overrides = body.get("zone_overrides", None)
 
     sc = SCENARIOS.get(scenario_id, SCENARIOS["aleppo"])
     if n_trucks is None:
@@ -221,7 +223,7 @@ def run():
     if capacity is None:
         capacity = sc["truck_capacity_kg"]
 
-    result = run_scenario(sc, blocked_ids, n_trucks, capacity, revealed_fog)
+    result = run_scenario(sc, blocked_ids, n_trucks, capacity, revealed_fog, zone_overrides)
     result["scenario"] = scenario_id
     return jsonify(result)
 
@@ -247,8 +249,7 @@ def tick():
 
 if __name__ == "__main__":
     import webbrowser
-    port = 8000
+    port = 5000
     print(f"\n  EAOPT running at  http://localhost:{port}\n")
     webbrowser.open(f"http://localhost:{port}")
     app.run(debug=False, port=port)
-
