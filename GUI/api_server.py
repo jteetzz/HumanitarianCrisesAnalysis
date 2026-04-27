@@ -14,7 +14,7 @@ from algorithms import (
     compute_scores,
 )
 
-app = Flask(__name__, static_folder="GUI")
+app = Flask(__name__, static_folder=".")
 
 SCENARIOS = {
     "aleppo": {
@@ -200,7 +200,7 @@ def run_scenario(sc, blocked_ids, n_trucks, capacity, revealed_fog):
 
 @app.route("/")
 def index():
-    return send_from_directory("GUI", "index.html")
+    return send_from_directory(".", "index.html")
 
 @app.route("/api/scenarios", methods=["GET"])
 def get_scenarios():
@@ -247,7 +247,7 @@ def tick():
 
 if __name__ == "__main__":
     import webbrowser
-    port = 5000
+    port = 8000
     print(f"\n  EAOPT running at  http://localhost:{port}\n")
     webbrowser.open(f"http://localhost:{port}")
     app.run(debug=False, port=port)
