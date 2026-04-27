@@ -1,4 +1,4 @@
-# Emergency Aid Optimizer — Final Project CMPSC 463
+# Emergency Aid Optimizer: Final Project CMPSC 463
 
 This project started from a simple question: how do you decide which people get help first when you don't have enough trucks, supplies, or time for everyone?
 
